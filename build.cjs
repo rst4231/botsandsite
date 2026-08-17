@@ -21,10 +21,6 @@ if (!contentBot.includes('export async function publishedTopicPostForDate')) {
   fs.writeFileSync(contentBotPath, contentBot);
 }
 
-const routeDir = path.join(cwd, 'app', 'api', 'vk', 'repost-history-a19c7e52');
-fs.mkdirSync(routeDir, { recursive: true });
-fs.writeFileSync(path.join(routeDir, 'route.js'), `export const runtime = 'nodejs';\nexport const maxDuration = 60;\n\nimport { publishedTopicPostForDate } from '../../../../lib/content-bot.js';\nimport { publishTelegramTextToVk } from '../../../../lib/vk.js';\n\nexport async function GET(request) {\n  const date = request.nextUrl.searchParams.get('date') || '2026-08-16';\n  const kind = request.nextUrl.searchParams.get('kind') || 'beginner';\n  const post = await publishedTopicPostForDate(kind, date);\n  if (!post) return Response.json({ ok: false, error: 'Stored publication was not found', kind, date }, { status: 404 });\n  const vk = await publishTelegramTextToVk(post.text, post.messageId);\n  return Response.json({ ok: true, kind, date, telegramMessageId: post.messageId, title: post.title, vk });\n}\n`);
-
 const nextBin = path.join(cwd, 'node_modules', '.bin', 'next');
 const result = spawnSync(nextBin, ['build'], { cwd, stdio: 'inherit', env: process.env });
 process.exit(result.status ?? 1);
