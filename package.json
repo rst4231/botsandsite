@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "node restore.cjs"
+    "build": "node pre.cjs"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.3",
