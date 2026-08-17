@@ -33,6 +33,24 @@ contentBot = contentBot.replace(
   "const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);\n  const usedNewsIds = new Set((await history()).filter((item) => item?.kind === 'fb-killa').map((item) => item.id));\n  for (const candidate of candidates) {\n    if (usedNewsIds.has(`fb-killa:${candidate.url}`)) continue;"
 );
 
+// Search only the FB-Killa News section instead of the mixed homepage.
+contentBot = contentBot.replace(
+  "const response = await fetch('https://fb-killa.pro/', {",
+  "const response = await fetch('https://fb-killa.pro/forums/novosti.338/', {"
+);
+
+// Preserve the raw title so relevance can be checked before platform names are sanitized for publication.
+contentBot = contentBot.replace(
+  ".map((match) => ({ url: new URL(match[1], 'https://fb-killa.pro').toString(), title: sanitizePlatformNames(htmlToText(match[2])) }))",
+  ".map((match) => { const rawTitle = htmlToText(match[2]); return { url: new URL(match[1], 'https://fb-killa.pro').toString(), rawTitle, title: sanitizePlatformNames(rawTitle) }; })"
+);
+
+// Facebook-only filter. Reject scam/crypto/gambling/general-industry noise even when it appears in the News section.
+contentBot = contentBot.replace(
+  "    const description = articleHtml.match(/<meta[^>]+name=[\\\"']description[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']/i)?.[1]\n      ?? articleHtml.match(/<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+name=[\\\"']description[\\\"']/i)?.[1]\n      ?? '';\n    return { ...candidate, description: sanitizePlatformNames(description), articleHtml, publishedAt };",
+  "    const description = articleHtml.match(/<meta[^>]+name=[\\\"']description[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']/i)?.[1]\n      ?? articleHtml.match(/<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+name=[\\\"']description[\\\"']/i)?.[1]\n      ?? '';\n    const rawRelevanceText = `${candidate.rawTitle || ''} ${description} ${htmlToText(articleHtml).slice(0, 12000)}`;\n    const isFacebookNews = /(?:\\bfacebook\\b|\\bmeta\\b|\\bfb\\b|fb\\s*ads|ads\\s*manager|business\\s*manager|фейсбук|\\bмета\\b|бизнес[-\\s]?менеджер)/i.test(rawRelevanceText);\n    const isNoise = /(?:мошенн|скам|scam|fraud|крипт|crypto|казино|casino|букмек|ставк|betting|зарплат|salary|задержан|арест|санкц|угрозы суда|судебн)/i.test(candidate.rawTitle || '');\n    if (!isFacebookNews || isNoise) continue;\n    return { ...candidate, description: sanitizePlatformNames(description), articleHtml, publishedAt };"
+);
+
 if (!contentBot.includes('export async function publishedTopicPostForDate')) {
   const marker = '\nfunction regularKindForWeekday(weekday) {';
   const helper = `\nexport async function publishedTopicPostForDate(kind, dateKey) {\n  const published = await cache.get(\`published:\${kind}:\${dateKey}\`);\n  if (!published?.id || !TOPICS[kind]) return null;\n  const date = new Date(\`\${dateKey}T12:00:00Z\`);\n  const capacity = TOPICS[kind].length * ANGLES.length * LENSES.length;\n  for (let index = 0; index < capacity; index += 1) {\n    const candidate = topicPost(kind, date, index);\n    if (candidate.id === published.id) return { ...candidate, messageId: published.messageId };\n  }\n  return null;\n}\n`;
