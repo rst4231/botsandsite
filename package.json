@@ -1,8 +1,14 @@
 {
-  "name": "traffic-news-bootstrap",
+  "name": "traffic-news-telegram-bot",
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "node prepare.cjs && npm install --ignore-scripts && npx next build"
+    "build": "node restore.cjs"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.9.3",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
