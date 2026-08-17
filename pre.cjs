@@ -3,11 +3,11 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 
 const cwd = process.cwd();
-const encodedPath = path.join(cwd, 'source2.b64');
-const archivePath = path.join(cwd, '.source2.tgz');
+const archivePath = path.join(cwd, '.source3.tgz');
+const chunks = fs.readdirSync(cwd).filter((name) => /^source3\.b64\.\d+$/.test(name)).sort();
+if (!chunks.length) throw new Error('Corrected source archive chunks are missing');
 
-if (!fs.existsSync(encodedPath)) throw new Error('source2.b64 is missing');
-const encoded = fs.readFileSync(encodedPath, 'utf8').replace(/\s+/g, '');
+const encoded = chunks.map((name) => fs.readFileSync(path.join(cwd, name), 'utf8').trim()).join('');
 fs.writeFileSync(archivePath, Buffer.from(encoded, 'base64'));
 execFileSync('tar', ['-xzf', archivePath, '-C', cwd], { stdio: 'inherit' });
 
