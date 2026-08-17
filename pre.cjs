@@ -1,11 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const { execFileSync, spawnSync } = require('child_process');
 
 const cwd = process.cwd();
-const chunks = fs.readdirSync(cwd).filter((name) => /^source\.b64\.\d+$/.test(name)).sort();
-if (!chunks.length) throw new Error('Source archive chunks are missing');
+const encodedPath = path.join(cwd, 'source2.b64');
+const archivePath = path.join(cwd, '.source2.tgz');
 
-const archive = Buffer.concat(chunks.map((name) => Buffer.from(fs.readFileSync(path.join(cwd, name), 'utf8').trim(), 'base64')));
-for (const name of chunks) fs.unlinkSync(path.join(cwd, name));
-fs.writeFileSync(path.join(cwd, 'source.b64.00'), archive.toString('base64'));
-require('./restore.cjs');
+if (!fs.existsSync(encodedPath)) throw new Error('source2.b64 is missing');
+const encoded = fs.readFileSync(encodedPath, 'utf8').replace(/\s+/g, '');
+fs.writeFileSync(archivePath, Buffer.from(encoded, 'base64'));
+execFileSync('tar', ['-xzf', archivePath, '-C', cwd], { stdio: 'inherit' });
+
+const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
+if (pkg.name !== 'traffic-news-telegram-bot') throw new Error('Recovered project is invalid');
+
+const nextBin = path.join(cwd, 'node_modules', '.bin', 'next');
+const result = spawnSync(nextBin, ['build'], { cwd, stdio: 'inherit', env: process.env });
+process.exit(result.status ?? 1);
