@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+import { NextRequest } from 'next/server';
 import { GET as runCronPublish } from '../../cron/publish/route.js';
 
 const KEY = 'run-evening-now-20260817-9f2c6e41';
@@ -16,6 +17,6 @@ export async function GET(request) {
     headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
   }
 
-  const cronRequest = new Request(url, { method: 'GET', headers });
+  const cronRequest = new NextRequest(url, { method: 'GET', headers });
   return runCronPublish(cronRequest);
 }
