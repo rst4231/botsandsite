@@ -1,3 +1,4 @@
+// RUDI recovery loader: module resolution fixed for Vercel runtime.
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
