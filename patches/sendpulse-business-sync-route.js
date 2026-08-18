@@ -10,6 +10,7 @@ import {
 } from '../../../../lib/sendpulse-business-sync/sync.mjs';
 
 const DEFAULT_IRINA_BOT_ID = '6671465ac84ab24b4702fa25';
+const DEFAULT_IRINA_TELEGRAM_ID = '6934241673';
 const FALLBACK_WEBHOOK_SECRET_SHA256 = [
   'bda55a2f3cc14bf5',
   '79b7a00cfbde778f',
@@ -50,7 +51,14 @@ function logResult(result) {
     missing_telegram_id: 'business_sync_no_source',
   }[result?.status] || 'business_sync_ignored_event';
 
-  console.info(eventName, { ...base, status: result?.status });
+  const eventMeta = result?.status === 'ignored_event' ? {
+    service: result.service,
+    title: result.title,
+    eventBotId: result.eventBotId,
+    eventExternalId: result.eventExternalId,
+  } : {};
+
+  console.info(eventName, { ...base, ...eventMeta, status: result?.status });
 }
 
 export async function POST(request) {
@@ -84,7 +92,8 @@ export async function POST(request) {
     return Response.json({ ok: true, enabled: false, processed: 0 });
   }
 
-  const botId = process.env.SENDPULSE_IRINA_BOT_ID || DEFAULT_IRINA_BOT_ID;
+  const botId = DEFAULT_IRINA_BOT_ID;
+  const telegramBotId = process.env.SENDPULSE_IRINA_TELEGRAM_ID || DEFAULT_IRINA_TELEGRAM_ID;
 
   let client;
   try {
@@ -104,6 +113,7 @@ export async function POST(request) {
       const result = await processBusinessSyncEvent(event, {
         enabled: true,
         botId,
+        telegramBotId,
         client,
       });
       results.push(result);

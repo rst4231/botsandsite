@@ -33,21 +33,35 @@ export function customVariablesFromContact(contact) {
     .map(([name, value]) => ({ variable_name: name, variable_value: value }));
 }
 
-function eventIsEligible(event, botId) {
+function eventIsEligible(event, botId, telegramBotId) {
+  const eventBotId = String(event?.bot?.id ?? '');
+  const eventExternalId = String(event?.bot?.external_id ?? '');
   return event?.service === 'telegram'
     && event?.title === 'incoming_message'
-    && event?.bot?.id === botId;
+    && (
+      (botId && eventBotId === String(botId))
+      || (telegramBotId && eventExternalId === String(telegramBotId))
+    );
 }
 
 export async function processBusinessSyncEvent(event, options) {
   const {
     enabled = false,
     botId,
+    telegramBotId,
     client,
   } = options || {};
 
   if (!enabled) return { status: 'disabled' };
-  if (!eventIsEligible(event, botId)) return { status: 'ignored_event' };
+  if (!eventIsEligible(event, botId, telegramBotId)) {
+    return {
+      status: 'ignored_event',
+      service: event?.service,
+      title: event?.title,
+      eventBotId: event?.bot?.id,
+      eventExternalId: event?.bot?.external_id,
+    };
+  }
   if (!client) throw new Error('SendPulse client is required');
 
   const destinationId = event?.contact?.id;
@@ -65,8 +79,6 @@ export async function processBusinessSyncEvent(event, options) {
     return { status: 'missing_telegram_id', destinationId };
   }
 
-  // Without business_connection_id SendPulse resolves the ordinary bot subscriber.
-  // For a normal bot message this resolves back to the same contact, which is a safe skip.
   const source = await client.getContactByTelegramId(botId, telegramId);
   if (!source?.id) return { status: 'no_source', destinationId };
   if (source.id === destinationId) {
