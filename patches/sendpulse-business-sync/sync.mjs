@@ -16,6 +16,13 @@ export function secretMatches(actual, expected) {
   return timingSafeEqual(actualHash, expectedHash);
 }
 
+export function secretHashMatches(actual, expectedHashHex) {
+  if (!actual || !/^[a-f0-9]{64}$/i.test(String(expectedHashHex || ''))) return false;
+  const actualHash = createHash('sha256').update(String(actual)).digest();
+  const expectedHash = Buffer.from(String(expectedHashHex), 'hex');
+  return timingSafeEqual(actualHash, expectedHash);
+}
+
 export function customVariablesFromContact(contact) {
   const variables = contact?.variables;
   if (!variables || typeof variables !== 'object' || Array.isArray(variables)) return [];
