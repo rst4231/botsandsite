@@ -26,31 +26,20 @@ contentBot = contentBot.replace(
   "  const response = await callVk('wall.post', {\n    owner_id: `-${VK_GROUP_ID}`,\n    from_group: 1,\n    message: telegramHtmlToVkText(text),\n  }, tokenOverride);\n  const postId = response?.post_id;\n  if (postId) {\n    await callVk('wall.closeComments', { owner_id: `-${VK_GROUP_ID}`, post_id: postId }, tokenOverride);\n  }\n  return postId;"
 );
 
-// Monday news rules: lowercase hashtag, max age 7 days, skip already used source URLs.
-contentBot = contentBot.replace(/#Новости/g, '#новости');
+// Remove Monday FB-Killa parsing and publishing completely.
 contentBot = contentBot.replace(
-  "const cutoff = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);\n  for (const candidate of candidates) {",
-  "const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);\n  const usedNewsIds = new Set((await history()).filter((item) => item?.kind === 'fb-killa').map((item) => item.id));\n  for (const candidate of candidates) {\n    if (usedNewsIds.has(`fb-killa:${candidate.url}`)) continue;"
+  "  if (parts.weekday === 1) return { ...parts, kind: 'fb-killa' };\n",
+  ''
 );
 
-// Search only the FB-Killa News section instead of the mixed homepage.
 contentBot = contentBot.replace(
-  "const response = await fetch('https://fb-killa.pro/', {",
-  "const response = await fetch('https://fb-killa.pro/forums/novosti.338/', {"
+  /\nfunction sanitizePlatformNames\(value = ''\) \{[\s\S]*?\nfunction parseMonth\(value\) \{/,
+  '\nfunction parseMonth(value) {'
 );
 
-// Preserve the raw title so relevance can be checked before platform names are sanitized for publication.
 contentBot = contentBot.replace(
-  ".map((match) => ({ url: new URL(match[1], 'https://fb-killa.pro').toString(), title: sanitizePlatformNames(htmlToText(match[2])) }))",
-  ".map((match) => { const rawTitle = htmlToText(match[2]); return { url: new URL(match[1], 'https://fb-killa.pro').toString(), rawTitle, title: sanitizePlatformNames(rawTitle) }; })"
-);
-
-// FB-only advertising/news filter. Check title + description only, never the common site header/footer.
-// Require both an FB/Meta product signal and an advertising/account-management signal.
-// Reject scam, crypto, gambling, legal/crime and other unrelated industry noise.
-contentBot = contentBot.replace(
-  "    const description = articleHtml.match(/<meta[^>]+name=[\\\"']description[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']/i)?.[1]\n      ?? articleHtml.match(/<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+name=[\\\"']description[\\\"']/i)?.[1]\n      ?? '';\n    return { ...candidate, description: sanitizePlatformNames(description), articleHtml, publishedAt };",
-  "    const description = articleHtml.match(/<meta[^>]+name=[\\\"']description[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']/i)?.[1]\n      ?? articleHtml.match(/<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+name=[\\\"']description[\\\"']/i)?.[1]\n      ?? '';\n    const rawRelevanceText = `${candidate.rawTitle || ''} ${htmlToText(description)}`;\n    const hasFbSignal = /(?:\\bfacebook\\b|\\bmeta\\b|\\bfb\\b|фейсбук|\\bмета\\b|ads\\s*manager|business\\s*suite|business\\s*manager|advantage\\+?|fanpage|фанпейдж)/i.test(rawRelevanceText);\n    const hasAdsSignal = /(?:\\bads?\\b|advertis|реклам|кабинет|аккаунт|account|campaign|кампан|ads\\s*manager|business\\s*suite|business\\s*manager|advantage\\+?|pixel|пиксел|conversion|конверс|capi|модерац|\\bban\\b|бан|блок|fanpage|фанпейдж|payment|billing|оплат|creative|креатив|target|таргет|lead|лид|placement|плейсмент|audience|аудитор|tracking|трекинг)/i.test(rawRelevanceText);\n    const isNoise = /(?:мошенн|скам|scam|fraud|фишинг|phishing|крипт|crypto|казино|casino|слот|букмек|ставк|betting|зарплат|salary|задержан|арест|санкц|угрозы суда|судебн|полиц|уголов|выигрыш|лотере)/i.test(candidate.rawTitle || '');\n    if (!hasFbSignal || !hasAdsSignal || isNoise) continue;\n    return { ...candidate, description: sanitizePlatformNames(description), articleHtml, publishedAt };"
+  "export async function createPost(kind, date = new Date()) {\n  if (kind === 'fb-killa') {\n    const article = await getLatestFbKillaArticle();\n    return article ? newsPost(article) : null;\n  }\n  if (kind === 'events') return eventsPost(await getUpcomingEvents(date), date);\n  return plannedTopicPost(kind, date);\n}",
+  "export async function createPost(kind, date = new Date()) {\n  if (kind === 'events') return eventsPost(await getUpcomingEvents(date), date);\n  return plannedTopicPost(kind, date);\n}"
 );
 
 if (!contentBot.includes('export async function publishedTopicPostForDate')) {
@@ -61,6 +50,32 @@ if (!contentBot.includes('export async function publishedTopicPostForDate')) {
 }
 
 fs.writeFileSync(contentBotPath, contentBot);
+
+// Remove Monday from public health/status text.
+const healthPath = path.join(cwd, 'app', 'api', 'health', 'route.js');
+if (fs.existsSync(healthPath)) {
+  let health = fs.readFileSync(healthPath, 'utf8');
+  health = health.replace(/^\s*monday:\s*['"`][^'"`]*['"`],?\s*$/m, '');
+  fs.writeFileSync(healthPath, health);
+}
+
+const pagePath = path.join(cwd, 'app', 'page.jsx');
+if (fs.existsSync(pagePath)) {
+  let page = fs.readFileSync(pagePath, 'utf8');
+  page = page.replace(
+    'по понедельникам, средам, пятницам и воскресеньям',
+    'по средам, пятницам и воскресеньям'
+  );
+  fs.writeFileSync(pagePath, page);
+}
+
+// Remove temporary Monday-news endpoints from the built app as well.
+for (const relativePath of [
+  'app/api/admin/inspect-news-candidate-temp',
+  'app/api/admin/publish-monday-fbkilla-now',
+]) {
+  fs.rmSync(path.join(cwd, relativePath), { recursive: true, force: true });
+}
 
 const nextBin = path.join(cwd, 'node_modules', '.bin', 'next');
 const result = spawnSync(nextBin, ['build'], { cwd, stdio: 'inherit', env: process.env });
