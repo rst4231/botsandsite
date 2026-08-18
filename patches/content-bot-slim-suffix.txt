@@ -1,0 +1,92 @@
+const FORBIDDEN_LABELS = /^(?:практический разбор|ошибк(?:а|и) новичк(?:а|ов)|внутренняя кухня(?: команды)?)(?:\s*[:—-]|\s*$)/i;
+
+function htmlToText(value = '') {
+  return String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function datePartsInMoscow(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+  return {
+    year,
+    month,
+    day,
+    dateKey: `${values.year}-${values.month}-${values.day}`,
+    weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+  };
+}
+
+export function publicationKindForDate(date = new Date()) {
+  const parts = datePartsInMoscow(date);
+  if (parts.weekday === 3) return { ...parts, kind: 'practical' };
+  if (parts.weekday === 5) return { ...parts, kind: 'team' };
+  if (parts.weekday === 0) return { ...parts, kind: 'beginner' };
+  if (parts.weekday === 6 && parts.day >= 8 && parts.day <= 14) return { ...parts, kind: 'events' };
+  return { ...parts, kind: null };
+}
+
+export async function sendToTelegram(text, chatIdOverride) {
+  const { token, chatId } = getTelegramConfig();
+  const target = chatIdOverride || chatId;
+  if (!token || !target) throw new Error('Telegram production settings are missing');
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: target,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    }),
+  });
+  const data = await response.json();
+  if (!data.ok) throw new Error(data.description || 'Telegram publishing failed');
+  return data.result.message_id;
+}
+
+export async function createPost() {
+  return null;
+}
+
+export async function publishScheduledPost() {
+  return { ok: true, skipped: 'Dynamic in-app generation is disabled; only the 09:00 ChatGPT prepared queue is published' };
+}
+
+export async function futurePlanSummary() {
+  return [];
+}
+
+export async function ensureFutureContentPlan() {
+  return { ok: true, disabled: true, reason: 'Advance content planning is disabled' };
+}
+
+export async function replaceFuturePost() {
+  throw new Error('Advance content planning is disabled');
+}
+
+export async function publishedTopicPostForDate() {
+  return null;
+}
+
+export async function alreadyPublished() {
+  return false;
+}
+
+export async function publishPostToChannel() {
+  return { ok: false, skipped: 'Direct post publishing is disabled; stage prepared content first' };
+}
+
+export function validateGeneratedPost(post) {
+  if (!post?.text || post.text.length > 4000) throw new Error('Post text is empty or too long');
+  const firstLine = htmlToText(post.text).split(/\n/)[0].trim();
+  if (FORBIDDEN_LABELS.test(firstLine)) throw new Error('A forbidden rubric label was found in the title');
+  return true;
+}
