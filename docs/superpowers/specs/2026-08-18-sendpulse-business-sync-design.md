@@ -199,3 +199,7 @@ After code and tests are complete:
 ## Success Criteria
 
 A real existing Irina subscriber writes to the Telegram Business account for the first time. The new Business contact receives the same custom variables and tags as the original Irina contact. Subsequent messages do not repeat the copy after `Business_sync=done`. Existing news/VK publication behavior remains unchanged.
+
+## Production Activation
+
+Production environment variables were configured on 2026-08-19. This documentation-only commit triggers the single redeploy required for Vercel to load the new environment values.
