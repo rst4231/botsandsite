@@ -1,22 +1,8 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_tg663wlSXTaoE2HNfekiymY0IF63\" ]; then true; else node build.cjs; fi",
-  "ignoreCommand": "node scripts/vercel-project-mode.cjs",
-  "functions": {
-    "api/rudi.js": {
-      "maxDuration": 300
-    }
-  },
-  "rewrites": [
-    { "source": "/api/telegram", "destination": "/api/rudi?route=telegram" },
-    { "source": "/api/alice-shopping", "destination": "/api/rudi?route=alice-shopping" },
-    { "source": "/api/init-products", "destination": "/api/rudi?route=init-products" },
-    { "source": "/api/preview", "destination": "/api/rudi?route=preview" },
-    { "source": "/api/daily", "destination": "/api/rudi?route=daily" },
-    { "source": "/api/health", "destination": "/api/rudi?route=health" }
-  ],
   "crons": [
-    { "path": "/api/cron/publish", "schedule": "40 15 * * *" },
-    { "path": "/api/daily", "schedule": "30 21 * * *" }
+    {
+      "path": "/api/cron/publish",
+      "schedule": "40 15 * * *"
+    }
   ]
 }

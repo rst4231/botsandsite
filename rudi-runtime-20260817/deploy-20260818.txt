@@ -1,3 +1,0 @@
-RUDI production restore trigger
-Source deployment: dpl_7XRQGtaoD4DbqNNz3m9PeKZVyv5t
-Prepared: 2026-08-18
