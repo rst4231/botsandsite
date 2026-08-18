@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-const EXPECTED_HASH = 'f2dae2d08fccb7499bb937be70f03342d6e62e35a3af6839aedf7eb35357b82d';
+const EXPECTED_HASH = '59d9c6d3e18f3b33c7f64257af4b08043b46c5186414f2e87b1d00cbf91e4d86';
 
 export function authorizedContentRequest(request) {
   const key = request.nextUrl.searchParams.get('key') || '';
