@@ -99,3 +99,16 @@ test('reports non-JSON story upload response without hiding the HTTP status', as
   const apiCall = async (method) => { if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' }; throw new Error('unexpected method'); };
   await assert.rejects(uploadVkStory({ groupId: '160851478', image: Buffer.from('png'), apiCall, fetchImpl: async () => ({ ok: false, status: 502, async text() { return '<!DOCTYPE html>'; } }) }), /non-JSON \(HTTP 502\)/);
 });
+
+test('rejects a VK story save response that has no story id', async () => {
+  const apiCall = async (method) => {
+    if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' };
+    if (method === 'stories.save') return { count: 1, items: [{}] };
+    throw new Error('unexpected method');
+  };
+  const fetchImpl = async () => ({ ok: true, status: 200, async text() { return JSON.stringify({ response: { upload_result: 'abc' } }); } });
+  await assert.rejects(
+    uploadVkStory({ groupId: '160851478', image: Buffer.from('png'), apiCall, fetchImpl }),
+    /story id is missing/i,
+  );
+});

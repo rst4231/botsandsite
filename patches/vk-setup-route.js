@@ -1,39 +1,38 @@
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { getCache } from '@vercel/functions';
+import { authorizedContentRequest } from '../../../../lib/content-auth.js';
 
 const primary = getCache({ namespace: 'traffic-news-v4' });
 const secondary = getCache({ namespace: 'traffic-news-vk-v1' });
 const TTL = 60 * 60 * 24 * 730;
-const EXPECTED_KEY_HASH = '0256ce3186c51136247fc1ffc6539d44eef5bca196d29a749d14376c72632ef4';
-
-function authorized(value) {
-  const actual = createHash('sha256').update(value || '').digest();
-  const expected = Buffer.from(EXPECTED_KEY_HASH, 'hex');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
+const VK_API_VERSION = '5.199';
+const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 
 async function validateToken(token) {
-  const body = new URLSearchParams({ access_token: token, v: '5.199' });
-  const response = await fetch('https://api.vk.com/method/photos.getMessagesUploadServer', {
+  const body = new URLSearchParams({
+    owner_id: `-${VK_GROUP_ID}`,
+    access_token: token,
+    v: VK_API_VERSION,
+  });
+  const response = await fetch('https://api.vk.com/method/stories.get', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body,
     cache: 'no-store',
   });
   const data = await response.json();
-  if (!data?.response?.upload_url) {
-    const error = new Error(data?.error?.error_msg || 'VK token validation failed');
-    error.code = data?.error?.error_code || response.status;
+  if (data?.error) {
+    const error = new Error(data.error.error_msg || 'VK token validation failed');
+    error.code = data.error.error_code || response.status;
     throw error;
   }
+  return true;
 }
 
 export async function GET(request) {
-  const key = request.nextUrl.searchParams.get('key') || '';
-  if (!authorized(key)) return new Response('Unauthorized', { status: 401 });
-
+  if (!authorizedContentRequest(request)) return new Response('Unauthorized', { status: 401 });
   const token = String(request.nextUrl.searchParams.get('token') || '').trim();
   if (!token) return Response.json({ ok: false, error: 'token is required' }, { status: 400 });
 
