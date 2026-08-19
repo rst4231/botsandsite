@@ -25,6 +25,7 @@ function initVk(app, redirectUrl, state, verifier) {
     state,
     codeVerifier: verifier,
     scope: VK_SCOPE,
+    mode: VKID.ConfigAuthMode.Redirect,
   });
 }
 
