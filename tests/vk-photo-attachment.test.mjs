@@ -6,16 +6,13 @@ import path from 'node:path';
 const preparedPath = path.join(process.cwd(), 'lib', 'prepared-content.js');
 const preparedSource = fs.readFileSync(preparedPath, 'utf8');
 
-test('VK slide posts are expanded into full text', () => {
+test('VK slide posts use the shared full-text formatter', () => {
   const vkTextMatch = preparedSource.match(/function vkText\(item\) \{[\s\S]*?\n\}/);
   assert.ok(vkTextMatch, 'expected vkText helper');
   const vkTextSource = vkTextMatch[0];
 
-  assert.match(vkTextSource, /item\.description/);
-  assert.match(vkTextSource, /item\.slides\.map/);
-  assert.match(vkTextSource, /slide\.title/);
-  assert.match(vkTextSource, /slide\.body/);
-  assert.match(vkTextSource, /VK_FOOTER/);
+  assert.match(preparedSource, /import \{ buildVkPreparedText \} from '\.\/vk-prepared-manual\.mjs';/);
+  assert.match(vkTextSource, /buildVkPreparedText\(item, VK_FOOTER\)/);
 });
 
 test('VK publishing never uploads or attaches images', () => {
