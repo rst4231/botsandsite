@@ -3,21 +3,39 @@ import assert from 'node:assert/strict';
 import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory } from '../lib/vk-prepared-manual.mjs';
 
 const item = {
+  kind: 'practical',
   title: 'Заголовок',
   description: 'Описание',
   format: 'slides',
   slides: [
     { title: 'Слайд 1', body: 'Текст 1' },
     { title: 'Слайд 2', body: 'Текст 2' },
+    { title: 'Слайд 3', body: 'Текст 3' },
+    { title: 'Слайд 4', body: 'Текст 4' },
+    { title: 'Слайд 5', body: 'Текст 5' },
   ],
 };
 
-test('builds a full VK text post from slide content', () => {
-  const text = buildVkPreparedText(item, '\n\nFOOTER');
-  assert.match(text, /^Заголовок\n\nОписание/);
-  assert.match(text, /Слайд 1\nТекст 1/);
-  assert.match(text, /Слайд 2\nТекст 2/);
-  assert.match(text, /FOOTER$/);
+test('builds a readable VK post with spacing and restrained emoji', () => {
+  const text = buildVkPreparedText(item, '\n\n📚 Рекомендуем изучить:\nFOOTER');
+  assert.match(text, /^📌 Заголовок\n\nОписание/);
+  assert.match(text, /🎯 Слайд 1\nТекст 1\n\n🔎 Слайд 2\nТекст 2/);
+  assert.match(text, /⚙️ Слайд 3\nТекст 3/);
+  assert.match(text, /📊 Слайд 4\nТекст 4/);
+  assert.match(text, /✅ Слайд 5\nТекст 5/);
+  assert.match(text, /📚 Рекомендуем изучить:\nFOOTER$/);
+  assert.doesNotMatch(text, /\n{3,}/);
+});
+
+test('decorates event text blocks without collapsing spacing', () => {
+  const text = buildVkPreparedText({
+    kind: 'events',
+    title: 'События месяца',
+    body: `Первое событие.\n\nВторое событие.`,
+    format: 'text',
+    slides: [],
+  });
+  assert.equal(text, `📅 События месяца\n\n🗓️ Первое событие.\n\n📍 Второе событие.`);
 });
 
 test('persists wall success before attempting story and does not duplicate existing wall post', async () => {
@@ -48,7 +66,7 @@ test('persists wall success before attempting story and does not duplicate exist
   assert.equal(storyCalls, 1);
 });
 
-test('uploads story file and saves upload_result', async () => {
+test('uploads story photo field and saves upload_result', async () => {
   const apiCalls = [];
   const fetchCalls = [];
   const apiCall = async (method, params) => {
@@ -59,7 +77,9 @@ test('uploads story file and saves upload_result', async () => {
   };
   const fetchImpl = async (url, options) => {
     fetchCalls.push({ url, options });
-    return { ok: true, async json() { return { response: { upload_result: 'abc123' } }; } };
+    assert.equal(options.body.has('photo'), true);
+    assert.equal(options.body.has('file'), false);
+    return { ok: true, status: 200, async text() { return JSON.stringify({ response: { upload_result: 'abc123' } }); } };
   };
   const result = await uploadVkStory({
     groupId: '160851478',
@@ -72,4 +92,20 @@ test('uploads story file and saves upload_result', async () => {
   assert.equal(apiCalls[1].method, 'stories.save');
   assert.deepEqual(apiCalls[1].params, { upload_results: 'abc123' });
   assert.deepEqual(result, { ownerId: -160851478, storyId: 55 });
+});
+
+test('reports non-JSON story upload response without hiding the HTTP status', async () => {
+  const apiCall = async (method) => {
+    if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' };
+    throw new Error('unexpected method');
+  };
+  await assert.rejects(
+    uploadVkStory({
+      groupId: '160851478',
+      image: Buffer.from('png'),
+      apiCall,
+      fetchImpl: async () => ({ ok: false, status: 502, async text() { return '<!DOCTYPE html>'; } }),
+    }),
+    /non-JSON \(HTTP 502\)/,
+  );
 });
