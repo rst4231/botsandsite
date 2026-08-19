@@ -49,59 +49,54 @@ copyPatch('sendpulse-business-sync-route.js', 'app/api/sendpulse/business-sync/r
 
 const preparedContentPath = path.join(cwd, 'lib', 'prepared-content.js');
 let preparedContent = fs.readFileSync(preparedContentPath, 'utf8');
-preparedContent = preparedContent.replace(
-  "import { getTelegramConfig } from './server-config.js';",
-  "import { getTelegramConfig } from './server-config.js';\nimport { formatVkPhotoAttachment } from './vk-photo-attachment.js';"
-);
 
-const vkUploadPattern = /async function uploadVkImages\(images, token\) \{[\s\S]*?\n\}\n\nasync function sendVk/;
-if (!vkUploadPattern.test(preparedContent)) throw new Error('Could not locate prepared VK uploader');
-preparedContent = preparedContent.replace(vkUploadPattern, `async function sleep(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
+const vkTextPattern = /function vkText\(item\) \{[\s\S]*?\n\}/;
+if (!vkTextPattern.test(preparedContent)) throw new Error('Could not locate prepared VK text formatter');
+preparedContent = preparedContent.replace(vkTextPattern, [
+  "function vkText(item) {",
+  "  if (item.format === 'text') {",
+  "    return `${item.title}\\n\\n${item.body}${VK_FOOTER}`;",
+  "  }",
+  "  const sections = item.slides.map((slide) => `${slide.title}\\n${slide.body}`).join('\\n\\n');",
+  "  return `${item.title}\\n\\n${item.description}\\n\\n${sections}${VK_FOOTER}`;",
+  "}",
+].join('\n'));
 
-async function uploadVkImages(images, token) {
-  const attachments = [];
-  for (let index = 0; index < images.length; index += 1) {
-    let photo = null;
-    let lastError = null;
+const vkPublisherPattern = /async function uploadVkImages\(images, token\) \{[\s\S]*?\n\}\n\nasync function sendVk\(item, images = \[\]\) \{[\s\S]*?\n\}\n\nasync function savePublishedHistory/;
+if (!vkPublisherPattern.test(preparedContent)) throw new Error('Could not locate prepared VK image publisher');
+preparedContent = preparedContent.replace(vkPublisherPattern, [
+  "async function sendVk(item) {",
+  "  const token = await getVkAccessToken();",
+  "  if (!token) throw new Error('VK access token is not configured');",
+  "  const post = await callVk('wall.post', {",
+  "    owner_id: `-${VK_GROUP_ID}` ,",
+  "    from_group: 1,",
+  "    message: vkText(item),",
+  "  }, token);",
+  "  const postId = post?.post_id;",
+  "  if (!postId) throw new Error('VK wall.post did not return post_id');",
+  "  try {",
+  "    await callVk('wall.closeComments', {",
+  "      owner_id: `-${VK_GROUP_ID}` ,",
+  "      post_id: postId,",
+  "    }, token);",
+  "  } catch (error) {",
+  "    console.error('VK post published but comments could not be closed:', error);",
+  "  }",
+  "  return postId;",
+  "}",
+  "",
+  "async function savePublishedHistory",
+].join('\n'));
 
-    for (let attempt = 1; attempt <= 3 && !photo; attempt += 1) {
-      try {
-        const uploadServer = await callVk('photos.getMessagesUploadServer', {}, token);
-        if (!uploadServer?.upload_url) throw new Error('VK message photo upload server is unavailable');
+const oldImageCondition = "if (item.format === 'slides' && (!status.telegram || !status.vk)) {";
+if (!preparedContent.includes(oldImageCondition)) throw new Error('Could not locate prepared slide rendering condition');
+preparedContent = preparedContent.replace(oldImageCondition, "if (item.format === 'slides' && !status.telegram) {");
 
-        const form = new FormData();
-        form.append('photo', new Blob([images[index]], { type: 'image/png' }), \`slide\${index + 1}.png\`);
-        const uploadResponse = await fetch(uploadServer.upload_url, { method: 'POST', body: form });
-        const uploaded = await uploadResponse.json();
-        if (!uploadResponse.ok) throw new Error(\`VK image upload failed for slide \${index + 1}\`);
-        if (!uploaded?.photo) throw new Error(\`VK upload returned empty photo for slide \${index + 1}\`);
+const oldVkSend = 'status.vk = await sendVk(item, images);';
+if (!preparedContent.includes(oldVkSend)) throw new Error('Could not locate prepared VK send call');
+preparedContent = preparedContent.replace(oldVkSend, 'status.vk = await sendVk(item);');
 
-        const saved = await callVk('photos.saveMessagesPhoto', {
-          photo: uploaded.photo,
-          server: uploaded.server,
-          hash: uploaded.hash,
-        }, token);
-        photo = Array.isArray(saved) ? saved[0] : null;
-        if (!photo?.owner_id || !photo?.id || !photo?.access_key) {
-          throw new Error(\`VK failed to save slide \${index + 1} with access_key\`);
-        }
-      } catch (error) {
-        lastError = error;
-        photo = null;
-        if (attempt < 3) await sleep(500 * attempt);
-      }
-    }
-
-    if (!photo) throw lastError || new Error(\`VK failed to upload slide \${index + 1}\`);
-    attachments.push(formatVkPhotoAttachment(photo));
-    if (index + 1 < images.length) await sleep(250);
-  }
-  return attachments;
-}
-
-async function sendVk`);
 fs.writeFileSync(preparedContentPath, preparedContent);
 
 for (const relativePath of [
