@@ -28,17 +28,34 @@ export async function GET(request) {
   const token = await cache.get(TOKEN_KEY);
   if (!token) return Response.json({ ok: false, error: 'VK token missing' }, { status: 500 });
   try {
-    const imageResponse = new ImageResponse(React.createElement('div', { style: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', color: '#111', fontSize: '48px', fontWeight: 700 } }, 'LH'), { width: 300, height: 300 });
+    const imageResponse = new ImageResponse(
+      React.createElement('div', { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff', color: '#111', fontSize: '64px', fontWeight: 700, padding: '80px' } },
+        React.createElement('div', null, 'LH'),
+        React.createElement('div', { style: { fontSize: '36px', marginTop: '40px' } }, '1080×1350 upload probe'),
+      ),
+      { width: 1080, height: 1350 },
+    );
     const png = Buffer.from(await imageResponse.arrayBuffer());
     const server = await callVk('photos.getMessagesUploadServer', {}, token);
     if (!server?.upload_url) throw new Error('No message photo upload URL');
     const form = new FormData();
-    form.append('photo', new Blob([png], { type: 'image/png' }), 'probe.png');
+    form.append('photo', new Blob([png], { type: 'image/png' }), 'probe-large.png');
     const uploadResponse = await fetch(server.upload_url, { method: 'POST', body: form });
-    const uploaded = await uploadResponse.json();
-    const saved = await callVk('photos.saveMessagesPhoto', { photo: uploaded.photo, server: uploaded.server, hash: uploaded.hash }, token);
-    const photo = Array.isArray(saved) ? saved[0] : null;
-    return Response.json({ ok: Boolean(photo?.id), ownerId: photo?.owner_id || null, photoId: photo?.id || null, sizes: Array.isArray(photo?.sizes) ? photo.sizes.length : null });
+    const raw = await uploadResponse.text();
+    let uploaded = null;
+    try { uploaded = JSON.parse(raw); } catch {}
+    return Response.json({
+      ok: uploadResponse.ok && Boolean(uploaded?.photo),
+      pngBytes: png.length,
+      uploadStatus: uploadResponse.status,
+      keys: uploaded && typeof uploaded === 'object' ? Object.keys(uploaded) : [],
+      photoType: typeof uploaded?.photo,
+      photoLength: typeof uploaded?.photo === 'string' ? uploaded.photo.length : null,
+      serverPresent: uploaded?.server !== undefined,
+      hashPresent: uploaded?.hash !== undefined,
+      error: uploaded?.error || null,
+      rawPreview: raw.slice(0, 600),
+    });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : 'probe failed' }, { status: 500 });
   }
