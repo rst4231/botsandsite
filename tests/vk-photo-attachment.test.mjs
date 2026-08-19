@@ -2,10 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { formatVkPhotoAttachment } from '../lib/vk-photo-attachment.js';
-
-const require = createRequire(import.meta.url);
 
 test('includes access_key when attaching a private VK message photo to a wall post', () => {
   assert.equal(
@@ -21,14 +18,22 @@ test('formats a public VK photo without access_key', () => {
   );
 });
 
-test('VK user auth bundles the official SDK and forces redirect auth', () => {
+test('VK user auth uses direct OAuth redirect instead of the SDK popup flow', () => {
   const pagePath = path.join(process.cwd(), 'app', 'vk-user-auth', 'page.js');
-  assert.equal(fs.existsSync(pagePath), true, 'expected a bundled client page at app/vk-user-auth/page.js');
+  assert.equal(fs.existsSync(pagePath), true, 'expected auth page at app/vk-user-auth/page.js');
   const source = fs.readFileSync(pagePath, 'utf8');
-  assert.match(source, /from ['"]@vkid\/sdk['"]/);
-  assert.doesNotMatch(source, /unpkg\.com/);
-  assert.match(source, /codeVerifier\s*:\s*verifier/);
-  assert.match(source, /mode\s*:\s*VKID\.ConfigAuthMode\.Redirect/);
-  assert.match(source, /Auth\.exchangeCode\(code,\s*deviceId\)/);
-  assert.doesNotThrow(() => require.resolve('@vkid/sdk'));
+  assert.doesNotMatch(source, /@vkid\/sdk/);
+  assert.match(source, /https:\/\/id\.vk\.ru\/authorize/);
+  assert.match(source, /code_challenge_method/);
+  assert.match(source, /response_type/);
+  assert.match(source, /client_id/);
+  assert.match(source, /app_id/);
+  assert.match(source, /scope/);
+  assert.match(source, /codeVerifier/);
+
+  const routePath = path.join(process.cwd(), 'app', 'api', 'vk', 'save-user-token-temp', 'route.js');
+  const route = fs.readFileSync(routePath, 'utf8');
+  assert.match(route, /https:\/\/id\.vk\.ru\/oauth2\/auth/);
+  assert.match(route, /authorization_code/);
+  assert.match(route, /code_verifier/);
 });
