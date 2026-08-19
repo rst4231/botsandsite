@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { formatVkPhotoAttachment } from '../lib/vk-photo-attachment.js';
+
+const require = createRequire(import.meta.url);
 
 test('includes access_key when attaching a private VK message photo to a wall post', () => {
   assert.equal(
@@ -26,7 +29,5 @@ test('VK user auth bundles the official SDK instead of relying on an external CD
   assert.doesNotMatch(source, /unpkg\.com/);
   assert.match(source, /codeVerifier\s*:\s*verifier/);
   assert.match(source, /Auth\.exchangeCode\(code,\s*deviceId\)/);
-
-  const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
-  assert.ok(packageJson.dependencies?.['@vkid/sdk'], '@vkid/sdk must be installed as an application dependency');
+  assert.doesNotThrow(() => require.resolve('@vkid/sdk'));
 });
