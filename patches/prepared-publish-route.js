@@ -2,10 +2,12 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 import { publishPreparedForToday } from '../../../../lib/prepared-content.js';
+import { authorizedContentRequest } from '../../../../lib/content-auth.js';
 
 export async function GET(request) {
   const secret = process.env.CRON_SECRET || '';
-  if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
+  const cronAuthorized = !secret || request.headers.get('authorization') === `Bearer ${secret}`;
+  if (!cronAuthorized && !authorizedContentRequest(request)) {
     return new Response('Unauthorized', { status: 401 });
   }
   try {
