@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import * as VKID from '@vkid/sdk';
 
 const DEFAULT_APP_ID = '54727129';
 const VK_SCOPE = 'wall photos groups';
+const VK_ID_VERSION = '2.6.1';
 
 function base64url(bytes) {
   let value = '';
@@ -18,15 +18,15 @@ function randomToken(size = 48) {
   return base64url(bytes);
 }
 
-function initVk(app, redirectUrl, state, verifier) {
-  VKID.Config.init({
-    app: Number(app),
-    redirectUrl,
-    state,
-    codeVerifier: verifier,
-    scope: VK_SCOPE,
-    mode: VKID.ConfigAuthMode.Redirect,
-  });
+async function codeChallengeFor(codeVerifier) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+  return base64url(new Uint8Array(digest));
+}
+
+function errorText(error) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  try { return JSON.stringify(error); } catch { return String(error); }
 }
 
 export default function VkUserAuthPage() {
@@ -46,37 +46,38 @@ export default function VkUserAuthPage() {
     const code = params.get('code');
     const deviceId = params.get('device_id');
     const returnedState = params.get('state');
+    const oauthError = params.get('error');
+    const oauthErrorDescription = params.get('error_description');
 
+    if (oauthError) {
+      setStatusType('err');
+      setStatus(`VK вернул ошибку: ${oauthErrorDescription || oauthError}`);
+      return;
+    }
     if (!code || !deviceId) return;
 
     (async () => {
       try {
         setStatusType('');
-        setStatus('VK вернул код. Обмениваю его на пользовательский access token…');
+        setStatus('VK вернул код. Получаю пользовательский access token…');
 
         const app = sessionStorage.getItem('vk_auth_app') || localStorage.getItem('vk_auth_app');
         const state = sessionStorage.getItem('vk_auth_state');
-        const verifier = sessionStorage.getItem('vk_auth_verifier');
+        const codeVerifier = sessionStorage.getItem('vk_auth_verifier');
 
-        if (!app || !state || !verifier) throw new Error('Не найдены данные PKCE. Нажми кнопку авторизации ещё раз.');
+        if (!app || !state || !codeVerifier) throw new Error('Не найдены данные PKCE. Нажми кнопку авторизации ещё раз.');
         if (returnedState !== state) throw new Error('VK state не совпал. Авторизация остановлена.');
 
-        initVk(app, redirect, state, verifier);
-        const tokens = await VKID.Auth.exchangeCode(code, deviceId);
-        if (!tokens?.access_token) throw new Error('VK не вернул access_token.');
-
-        setStatus('Токен получен. Проверяю право загружать фото на стену группы…');
         const response = await fetch('/api/vk/save-user-token-temp', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token || '',
-            expiresIn: tokens.expires_in || 0,
-            scope: tokens.scope || VK_SCOPE,
-            userId: tokens.user_id || null,
+            code,
             appId: Number(app),
             deviceId,
+            codeVerifier,
+            state,
+            redirectUrl: redirect,
           }),
         });
         const result = await response.json();
@@ -89,7 +90,7 @@ export default function VkUserAuthPage() {
         setStatus(`ГОТОВО. Пользовательский токен сохранён.\nUser ID: ${result.userId}\nЗагрузка фото на стену: разрешена\nRefresh token: ${result.refreshTokenStored ? 'сохранён' : 'не получен'}`);
       } catch (error) {
         setStatusType('err');
-        setStatus(`Ошибка: ${error?.message || error}`);
+        setStatus(`Ошибка: ${errorText(error)}`);
       }
     })();
   }, []);
@@ -105,20 +106,33 @@ export default function VkUserAuthPage() {
 
       const redirect = `${window.location.origin}/vk-user-auth`;
       const state = randomToken(24);
-      const verifier = randomToken(64);
+      const codeVerifier = randomToken(64);
+      const codeChallenge = await codeChallengeFor(codeVerifier);
 
       sessionStorage.setItem('vk_auth_app', app);
       localStorage.setItem('vk_auth_app', app);
       sessionStorage.setItem('vk_auth_state', state);
-      sessionStorage.setItem('vk_auth_verifier', verifier);
+      sessionStorage.setItem('vk_auth_verifier', codeVerifier);
 
-      initVk(app, redirect, state, verifier);
+      const query = new URLSearchParams({
+        client_id: app,
+        app_id: app,
+        redirect_uri: redirect,
+        response_type: 'code',
+        scope: VK_SCOPE,
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 's256',
+        v: VK_ID_VERSION,
+        sdk_type: 'vkid',
+      });
+
       setStatusType('');
       setStatus('Перенаправляю в VK…');
-      await VKID.Auth.login();
+      window.location.assign(`https://id.vk.ru/authorize?${query.toString()}`);
     } catch (error) {
       setStatusType('err');
-      setStatus(`Ошибка запуска VK ID: ${error?.message || error}`);
+      setStatus(`Ошибка запуска VK ID: ${errorText(error)}`);
     }
   }
 
@@ -137,7 +151,7 @@ export default function VkUserAuthPage() {
     <main style={styles.page}>
       <section style={styles.card}>
         <h1 style={styles.title}>Подключение пользовательского VK API</h1>
-        <p style={styles.paragraph}>Страница получает пользовательский токен через официальный VK ID SDK и сразу проверяет загрузку фото на стену сообщества.</p>
+        <p style={styles.paragraph}>Страница использует прямую авторизацию VK ID и сразу проверяет загрузку фото на стену сообщества.</p>
         <p style={styles.paragraph}><b>Redirect URL для приложения:</b></p>
         <code style={styles.code}>{redirectUrl || 'https://traffic-news-telegram-bot.vercel.app/vk-user-auth'}</code>
         <p style={styles.paragraph}>APP_ID:</p>
