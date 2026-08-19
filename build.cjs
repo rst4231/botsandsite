@@ -100,6 +100,13 @@ if (fs.existsSync(pagePath)) {
   fs.writeFileSync(pagePath, page);
 }
 
+const testResult = spawnSync(process.execPath, ['--test', path.join(cwd, 'tests', 'vk-photo-attachment.test.mjs')], {
+  cwd,
+  stdio: 'inherit',
+  env: process.env,
+});
+if ((testResult.status ?? 1) !== 0) process.exit(testResult.status ?? 1);
+
 const nextBin = path.join(cwd, 'node_modules', '.bin', 'next');
 const result = spawnSync(nextBin, ['build'], { cwd, stdio: 'inherit', env: process.env });
 process.exit(result.status ?? 1);
