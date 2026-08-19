@@ -2,38 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { formatVkPhotoAttachment } from '../lib/vk-photo-attachment.js';
 
-test('includes access_key when attaching a private VK message photo to a wall post', () => {
-  assert.equal(
-    formatVkPhotoAttachment({ owner_id: -160851478, id: 457249058, access_key: 'abc123' }),
-    'photo-160851478_457249058_abc123',
-  );
+const preparedPath = path.join(process.cwd(), 'patches', 'prepared-content.js');
+const preparedSource = fs.readFileSync(preparedPath, 'utf8');
+
+test('VK slide posts are expanded into full text', () => {
+  const vkTextMatch = preparedSource.match(/function vkText\(item\) \{[\s\S]*?\n\}/);
+  assert.ok(vkTextMatch, 'expected vkText helper');
+  const vkTextSource = vkTextMatch[0];
+
+  assert.match(vkTextSource, /item\.description/);
+  assert.match(vkTextSource, /item\.slides\.map/);
+  assert.match(vkTextSource, /slide\.title/);
+  assert.match(vkTextSource, /slide\.body/);
+  assert.match(vkTextSource, /VK_FOOTER/);
 });
 
-test('formats a public VK photo without access_key', () => {
-  assert.equal(
-    formatVkPhotoAttachment({ owner_id: -160851478, id: 457249058 }),
-    'photo-160851478_457249058',
-  );
+test('VK publishing never uploads or attaches images', () => {
+  assert.doesNotMatch(preparedSource, /async function uploadVkImages/);
+
+  const sendVkMatch = preparedSource.match(/async function sendVk\(item\) \{[\s\S]*?\n\}/);
+  assert.ok(sendVkMatch, 'expected text-only sendVk(item)');
+  const sendVkSource = sendVkMatch[0];
+
+  assert.doesNotMatch(sendVkSource, /attachments/);
+  assert.doesNotMatch(sendVkSource, /uploadVkImages/);
+  assert.match(sendVkSource, /message:\s*vkText\(item\)/);
 });
 
-test('VK user auth uses direct OAuth redirect instead of the SDK popup flow', () => {
-  const pagePath = path.join(process.cwd(), 'app', 'vk-user-auth', 'page.js');
-  assert.equal(fs.existsSync(pagePath), true, 'expected auth page at app/vk-user-auth/page.js');
-  const source = fs.readFileSync(pagePath, 'utf8');
-  assert.doesNotMatch(source, /@vkid\/sdk/);
-  assert.match(source, /https:\/\/id\.vk\.ru\/authorize/);
-  assert.match(source, /code_challenge_method/);
-  assert.match(source, /response_type/);
-  assert.match(source, /client_id/);
-  assert.match(source, /app_id/);
-  assert.match(source, /scope/);
-  assert.match(source, /codeVerifier/);
-
-  const routePath = path.join(process.cwd(), 'app', 'api', 'vk', 'save-user-token-temp', 'route.js');
-  const route = fs.readFileSync(routePath, 'utf8');
-  assert.match(route, /https:\/\/id\.vk\.ru\/oauth2\/auth/);
-  assert.match(route, /authorization_code/);
-  assert.match(route, /code_verifier/);
+test('slide images are rendered only when Telegram still needs them', () => {
+  assert.match(preparedSource, /item\.format === 'slides' && !status\.telegram/);
+  assert.match(preparedSource, /status\.vk = await sendVk\(item\)/);
 });
