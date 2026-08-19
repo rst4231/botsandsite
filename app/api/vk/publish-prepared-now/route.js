@@ -14,6 +14,39 @@ const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
 const VK_FOOTER = '\n\nРекомендуем изучить:\n[https://vk.ru/app5898182_-160851478#page=67e5217dfe30f032b45b7c8|Теория]\n[https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Практика]';
 
+const FALLBACK_ITEM = {
+  dateKey: '2026-08-19',
+  kind: 'practical',
+  title: 'Почему дешёвая заявка ещё ничего не говорит о качестве трафика',
+  description: 'Низкий CPL выглядит красиво в отчёте, но сам по себе почти ничего не доказывает. Смотрите дальше заявки: валидность, контакт, подтверждение, продажу и итоговую экономику. Иногда более дорогой лид приносит заметно больше денег.',
+  body: '',
+  format: 'slides',
+  fingerprint: 'manual-2026-08-19-cheap-lead-quality',
+  stagedAt: new Date().toISOString(),
+  slides: [
+    {
+      title: 'Дешёвая заявка ≠ хороший трафик',
+      body: 'CPL показывает только стоимость входа в воронку. Он не говорит, отвечает ли человек, подходит ли по условиям, подтверждает ли заказ и приносит ли в итоге деньги.',
+    },
+    {
+      title: 'Смотрите глубже заявки',
+      body: 'После CPL проверяйте валидность контактов, дозвон, подтверждение, выкуп или продажу. Чем дальше метрика от клика, тем точнее она показывает реальную ценность трафика.',
+    },
+    {
+      title: 'Пример: дороже, но выгоднее',
+      body: 'Источник A: CPL $1,50 и подтверждение 12% = $12,50 за подтверждённый лид. Источник B: CPL $2,30 и подтверждение 28% = $8,21. Дешёвая заявка проиграла.',
+    },
+    {
+      title: 'Почему CPL может обманывать',
+      body: 'Кликбейт, слишком широкая аудитория, слабое намерение, дубли и мусорные контакты легко снижают цену заявки. В отчёте цифра радует, а в кассе результата нет.',
+    },
+    {
+      title: 'Оптимизируйте по деньгам',
+      body: 'Сравнивайте источники по цене подтверждения или продажи, EPC и ROI после достаточного объёма данных. Лучший трафик не тот, где лид дешевле, а тот, где экономика сильнее.',
+    },
+  ],
+};
+
 function vkText(item) {
   const body = item.format === 'text' ? item.body : item.description;
   return `${item.title}\n\n${body}${VK_FOOTER}`;
@@ -233,7 +266,14 @@ export async function GET(request) {
     return Response.json({ ok: false, error: 'No publication is scheduled for today' }, { status: 400 });
   }
 
-  const item = await cache.get(`prepared-content:${schedule.dateKey}`);
+  let item = await cache.get(`prepared-content:${schedule.dateKey}`);
+  if (!item && schedule.dateKey === FALLBACK_ITEM.dateKey && schedule.kind === FALLBACK_ITEM.kind) {
+    item = FALLBACK_ITEM;
+    await cache.set(`prepared-content:${schedule.dateKey}`, item, {
+      ttl: 60 * 60 * 24 * 7,
+      tags: ['prepared-content'],
+    });
+  }
   if (!item) {
     return Response.json({ ok: false, error: 'No prepared content for today', dateKey: schedule.dateKey }, { status: 404 });
   }
