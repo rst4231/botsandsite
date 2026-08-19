@@ -21,13 +21,14 @@ test('formats a public VK photo without access_key', () => {
   );
 });
 
-test('VK user auth bundles the official SDK instead of relying on an external CDN', () => {
+test('VK user auth bundles the official SDK and forces redirect auth', () => {
   const pagePath = path.join(process.cwd(), 'app', 'vk-user-auth', 'page.js');
   assert.equal(fs.existsSync(pagePath), true, 'expected a bundled client page at app/vk-user-auth/page.js');
   const source = fs.readFileSync(pagePath, 'utf8');
   assert.match(source, /from ['"]@vkid\/sdk['"]/);
   assert.doesNotMatch(source, /unpkg\.com/);
   assert.match(source, /codeVerifier\s*:\s*verifier/);
+  assert.match(source, /mode\s*:\s*VKID\.ConfigAuthMode\.Redirect/);
   assert.match(source, /Auth\.exchangeCode\(code,\s*deviceId\)/);
   assert.doesNotThrow(() => require.resolve('@vkid/sdk'));
 });
