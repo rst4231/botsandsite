@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory } from '../lib/vk-prepared-manual.mjs';
+import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory, buildVkPostUrl } from '../lib/vk-prepared-manual.mjs';
 
 const item = {
   kind: 'practical',
@@ -28,45 +28,39 @@ test('builds a readable VK post with spacing and restrained emoji', () => {
 });
 
 test('decorates event text blocks without collapsing spacing', () => {
-  const text = buildVkPreparedText({
-    kind: 'events',
-    title: 'События месяца',
-    body: `Первое событие.\n\nВторое событие.`,
-    format: 'text',
-    slides: [],
-  });
+  const text = buildVkPreparedText({ kind: 'events', title: 'События месяца', body: `Первое событие.\n\nВторое событие.`, format: 'text', slides: [] });
   assert.equal(text, `📅 События месяца\n\n🗓️ Первое событие.\n\n📍 Второе событие.`);
 });
 
-test('persists wall success before attempting story and does not duplicate existing wall post', async () => {
+test('persists wall success before attempting story and passes the wall id into the story publisher', async () => {
   const persisted = [];
   let wallCalls = 0;
   let storyCalls = 0;
+  let storyPostId = null;
   const result = await ensureVkPreparedPublished({
     item,
     status: {},
     publishWall: async () => { wallCalls += 1; return 321; },
-    publishStory: async () => { storyCalls += 1; return { ownerId: -160851478, storyId: 77 }; },
+    publishStory: async (_item, postId) => { storyCalls += 1; storyPostId = postId; return { ownerId: -160851478, storyId: 77 }; },
     persist: async (status) => persisted.push(structuredClone(status)),
   });
   assert.equal(wallCalls, 1);
   assert.equal(storyCalls, 1);
+  assert.equal(storyPostId, 321);
   assert.equal(persisted[0].vk, 321);
   assert.equal(result.vk, 321);
   assert.equal(result.vkStory.storyId, 77);
-
-  await ensureVkPreparedPublished({
-    item,
-    status: result,
-    publishWall: async () => { wallCalls += 1; return 999; },
-    publishStory: async () => { storyCalls += 1; return { storyId: 999 }; },
-    persist: async () => {},
-  });
+  await ensureVkPreparedPublished({ item, status: result, publishWall: async () => { wallCalls += 1; return 999; }, publishStory: async () => { storyCalls += 1; return { storyId: 999 }; }, persist: async () => {} });
   assert.equal(wallCalls, 1);
   assert.equal(storyCalls, 1);
 });
 
-test('uploads story photo field and saves upload_result', async () => {
+test('builds the internal VK post URL used by stories', () => {
+  assert.equal(buildVkPostUrl('160851478', 321), 'https://vk.com/wall-160851478_321');
+  assert.equal(buildVkPostUrl('-160851478', 321), 'https://vk.com/wall-160851478_321');
+});
+
+test('uploads story photo field with a link to the published post and saves upload_result', async () => {
   const apiCalls = [];
   const fetchCalls = [];
   const apiCall = async (method, params) => {
@@ -81,31 +75,27 @@ test('uploads story photo field and saves upload_result', async () => {
     assert.equal(options.body.has('file'), false);
     return { ok: true, status: 200, async text() { return JSON.stringify({ response: { upload_result: 'abc123' } }); } };
   };
-  const result = await uploadVkStory({
-    groupId: '160851478',
-    image: Buffer.from('png'),
-    apiCall,
-    fetchImpl,
-  });
-  assert.deepEqual(apiCalls[0], { method: 'stories.getPhotoUploadServer', params: { group_id: '160851478', add_to_news: 1 } });
+  const result = await uploadVkStory({ groupId: '160851478', image: Buffer.from('png'), apiCall, fetchImpl, linkUrl: 'https://vk.com/wall-160851478_321', linkText: 'more' });
+  assert.deepEqual(apiCalls[0], { method: 'stories.getPhotoUploadServer', params: { group_id: '160851478', add_to_news: 1, link_url: 'https://vk.com/wall-160851478_321', link_text: 'more' } });
   assert.equal(fetchCalls[0].url, 'https://upload.example/story');
   assert.equal(apiCalls[1].method, 'stories.save');
   assert.deepEqual(apiCalls[1].params, { upload_results: 'abc123' });
   assert.deepEqual(result, { ownerId: -160851478, storyId: 55 });
 });
 
-test('reports non-JSON story upload response without hiding the HTTP status', async () => {
-  const apiCall = async (method) => {
+test('keeps story upload compatible when no link is requested', async () => {
+  const apiCalls = [];
+  const apiCall = async (method, params) => {
+    apiCalls.push({ method, params });
     if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' };
+    if (method === 'stories.save') return { items: [{ owner_id: -160851478, id: 55 }] };
     throw new Error('unexpected method');
   };
-  await assert.rejects(
-    uploadVkStory({
-      groupId: '160851478',
-      image: Buffer.from('png'),
-      apiCall,
-      fetchImpl: async () => ({ ok: false, status: 502, async text() { return '<!DOCTYPE html>'; } }),
-    }),
-    /non-JSON \(HTTP 502\)/,
-  );
+  await uploadVkStory({ groupId: '160851478', image: Buffer.from('png'), apiCall, fetchImpl: async () => ({ ok: true, status: 200, async text() { return JSON.stringify({ response: { upload_result: 'abc123' } }); } }) });
+  assert.deepEqual(apiCalls[0].params, { group_id: '160851478', add_to_news: 1 });
+});
+
+test('reports non-JSON story upload response without hiding the HTTP status', async () => {
+  const apiCall = async (method) => { if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' }; throw new Error('unexpected method'); };
+  await assert.rejects(uploadVkStory({ groupId: '160851478', image: Buffer.from('png'), apiCall, fetchImpl: async () => ({ ok: false, status: 502, async text() { return '<!DOCTYPE html>'; } }) }), /non-JSON \(HTTP 502\)/);
 });
