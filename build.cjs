@@ -47,6 +47,63 @@ copyPatch('sendpulse-business-sync/client.mjs', 'lib/sendpulse-business-sync/cli
 copyPatch('sendpulse-business-sync/sync.mjs', 'lib/sendpulse-business-sync/sync.mjs');
 copyPatch('sendpulse-business-sync-route.js', 'app/api/sendpulse/business-sync/route.js');
 
+const preparedContentPath = path.join(cwd, 'lib', 'prepared-content.js');
+let preparedContent = fs.readFileSync(preparedContentPath, 'utf8');
+preparedContent = preparedContent.replace(
+  "import { getTelegramConfig } from './server-config.js';",
+  "import { getTelegramConfig } from './server-config.js';\nimport { formatVkPhotoAttachment } from './vk-photo-attachment.js';"
+);
+
+const vkUploadPattern = /async function uploadVkImages\(images, token\) \{[\s\S]*?\n\}\n\nasync function sendVk/;
+if (!vkUploadPattern.test(preparedContent)) throw new Error('Could not locate prepared VK uploader');
+preparedContent = preparedContent.replace(vkUploadPattern, `async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function uploadVkImages(images, token) {
+  const attachments = [];
+  for (let index = 0; index < images.length; index += 1) {
+    let photo = null;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 3 && !photo; attempt += 1) {
+      try {
+        const uploadServer = await callVk('photos.getMessagesUploadServer', {}, token);
+        if (!uploadServer?.upload_url) throw new Error('VK message photo upload server is unavailable');
+
+        const form = new FormData();
+        form.append('photo', new Blob([images[index]], { type: 'image/png' }), \`slide\${index + 1}.png\`);
+        const uploadResponse = await fetch(uploadServer.upload_url, { method: 'POST', body: form });
+        const uploaded = await uploadResponse.json();
+        if (!uploadResponse.ok) throw new Error(\`VK image upload failed for slide \${index + 1}\`);
+        if (!uploaded?.photo) throw new Error(\`VK upload returned empty photo for slide \${index + 1}\`);
+
+        const saved = await callVk('photos.saveMessagesPhoto', {
+          photo: uploaded.photo,
+          server: uploaded.server,
+          hash: uploaded.hash,
+        }, token);
+        photo = Array.isArray(saved) ? saved[0] : null;
+        if (!photo?.owner_id || !photo?.id || !photo?.access_key) {
+          throw new Error(\`VK failed to save slide \${index + 1} with access_key\`);
+        }
+      } catch (error) {
+        lastError = error;
+        photo = null;
+        if (attempt < 3) await sleep(500 * attempt);
+      }
+    }
+
+    if (!photo) throw lastError || new Error(\`VK failed to upload slide \${index + 1}\`);
+    attachments.push(formatVkPhotoAttachment(photo));
+    if (index + 1 < images.length) await sleep(250);
+  }
+  return attachments;
+}
+
+async function sendVk`);
+fs.writeFileSync(preparedContentPath, preparedContent);
+
 for (const relativePath of [
   'app/api/admin/inspect-content-bot-temp',
   'app/api/admin/inspect-functions-temp',
