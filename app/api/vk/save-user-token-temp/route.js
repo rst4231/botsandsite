@@ -30,19 +30,60 @@ async function callVk(method, params, token) {
   return data.response;
 }
 
+async function exchangeCode({ code, appId, deviceId, codeVerifier, state, redirectUrl }) {
+  const query = new URLSearchParams({
+    grant_type: 'authorization_code',
+    redirect_uri: redirectUrl,
+    client_id: String(appId),
+    code_verifier: codeVerifier,
+    state,
+    device_id: deviceId,
+  });
+  const response = await fetch(`https://id.vk.ru/oauth2/auth?${query.toString()}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code }),
+    cache: 'no-store',
+  });
+  const data = await response.json();
+  if (!response.ok || data?.error) {
+    const message = data?.error_description || data?.error || 'VK ID code exchange failed';
+    const error = new Error(message);
+    error.code = data?.error || response.status;
+    throw error;
+  }
+  if (data?.state && data.state !== state) {
+    const error = new Error('VK state does not match the authorization request');
+    error.code = 'state_mismatch';
+    throw error;
+  }
+  return data;
+}
+
 export async function POST(request) {
   try {
     const payload = await request.json();
-    const accessToken = String(payload?.accessToken || '').trim();
-    const refreshToken = String(payload?.refreshToken || '').trim();
+    const code = String(payload?.code || '').trim();
     const appId = Number(payload?.appId || 0);
     const deviceId = String(payload?.deviceId || '').trim();
-    const expiresIn = Number(payload?.expiresIn || 0);
-    const scope = String(payload?.scope || '').trim();
+    const codeVerifier = String(payload?.codeVerifier || '').trim();
+    const state = String(payload?.state || '').trim();
+    const redirectUrl = String(payload?.redirectUrl || '').trim();
 
-    if (!accessToken || !appId || !deviceId) {
-      return Response.json({ ok: false, error: 'accessToken, appId and deviceId are required' }, { status: 400 });
+    if (!code || !appId || !deviceId || !codeVerifier || !state || !redirectUrl) {
+      return Response.json({
+        ok: false,
+        error: 'code, appId, deviceId, codeVerifier, state and redirectUrl are required',
+      }, { status: 400 });
     }
+
+    const tokens = await exchangeCode({ code, appId, deviceId, codeVerifier, state, redirectUrl });
+    const accessToken = String(tokens?.access_token || '').trim();
+    const refreshToken = String(tokens?.refresh_token || '').trim();
+    const expiresIn = Number(tokens?.expires_in || 0);
+    const scope = String(tokens?.scope || '').trim();
+
+    if (!accessToken) throw new Error('VK ID did not return access_token');
 
     const user = await callVk('users.get', {}, accessToken);
     const userId = Array.isArray(user) ? Number(user[0]?.id || 0) : 0;
@@ -81,7 +122,7 @@ export async function POST(request) {
   } catch (error) {
     return Response.json({
       ok: false,
-      error: error instanceof Error ? error.message : 'VK user token validation failed',
+      error: error instanceof Error ? error.message : String(error || 'VK user token validation failed'),
       code: error?.code || null,
     }, { status: 400 });
   }
