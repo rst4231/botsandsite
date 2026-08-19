@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const preparedPath = path.join(process.cwd(), 'patches', 'prepared-content.js');
+const preparedPath = path.join(process.cwd(), 'lib', 'prepared-content.js');
 const preparedSource = fs.readFileSync(preparedPath, 'utf8');
 
 test('VK slide posts are expanded into full text', () => {
