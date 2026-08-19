@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeWallPostUrl, makePostClickableStickers, makeStoryUploadParams } from '../lib/vk-republish.js';
+import { makeWallPostUrl, makePostClickableStickers, makeStoryUploadParams, isGroupPhotoAuthError } from '../lib/vk-republish.js';
 
 test('builds VK wall post URL for a community post', () => {
   assert.equal(makeWallPostUrl(160851478, 5439), 'https://vk.com/wall-160851478_5439');
@@ -23,4 +23,9 @@ test('builds story upload params with a post sticker and internal fallback link'
   assert.equal(params.link_text, 'view');
   assert.equal(params.link_url, 'https://vk.com/wall-160851478_5439');
   assert.ok(params.clickable_stickers.includes('"type":"post"'));
+});
+
+test('detects VK group-auth restriction on wall photo upload', () => {
+  assert.equal(isGroupPhotoAuthError(new Error('VK 27: Group authorization failed: method is unavailable with group auth.')), true);
+  assert.equal(isGroupPhotoAuthError(new Error('VK 5: User authorization failed')), false);
 });
