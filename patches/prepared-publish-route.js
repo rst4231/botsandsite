@@ -11,7 +11,8 @@ export async function GET(request) {
     return new Response('Unauthorized', { status: 401 });
   }
   try {
-    return Response.json(await publishPreparedForToday());
+    const result = await publishPreparedForToday();
+    return Response.json(result, { status: result?.ok === false ? 502 : 200 });
   } catch (error) {
     console.error(error);
     return Response.json({
