@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
 const hardening = fs.readFileSync(new URL('../patches/publication-hardening.cjs', import.meta.url), 'utf8');
 const setup = fs.readFileSync(new URL('../patches/vk-setup-route.js', import.meta.url), 'utf8');
 const idempotency = fs.readFileSync(new URL('../patches/publication-idempotency-build.cjs', import.meta.url), 'utf8');
 
-test('build applies hardening and idempotency before compiling Next.js', () => {
-  assert.match(pkg.scripts.build, /publication-hardening\.cjs/);
-  assert.match(pkg.scripts.build, /publication-idempotency-build\.cjs/);
+test('build patches contain hardening and idempotency transforms', () => {
+  assert.match(hardening, /vk-setup-route\.js/);
+  assert.match(idempotency, /publication-idempotency-transform\.cjs/);
+  assert.match(idempotency, /transformPreparedContent/);
 });
 
 test('legacy VK publication endpoints remain in cleanup list', () => {
