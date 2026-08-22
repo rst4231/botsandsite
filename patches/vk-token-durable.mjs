@@ -2,6 +2,7 @@ import { createDecipheriv, createHash } from 'node:crypto';
 
 const MARKER = '<!-- traffic-news-vk-config-v1 -->';
 const ISSUE_URL = 'https://api.github.com/repos/rst4231/botsandsite/issues/8';
+const VK_API_VERSION = '5.199';
 
 function deriveKey(secret) {
   if (!secret) throw new Error('Durable VK token decryption secret is unavailable');
@@ -41,4 +42,26 @@ export async function loadDurableVkToken(secret, fetchImpl = fetch) {
   if (!response.ok) throw new Error(`Durable VK config fetch failed: HTTP ${response.status}`);
   const issue = await response.json();
   return decryptDurableVkToken(issue?.body || '', secret);
+}
+
+export async function validateVkToken(token, { groupId = '160851478', fetchImpl = fetch } = {}) {
+  if (!String(token || '').trim()) throw new Error('VK access token is missing');
+  const body = new URLSearchParams({
+    owner_id: `-${String(groupId).replace(/^-/, '')}`,
+    access_token: String(token),
+    v: VK_API_VERSION,
+  });
+  const response = await fetchImpl('https://api.vk.com/method/stories.get', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body,
+    cache: 'no-store',
+  });
+  const data = await response.json();
+  if (!response.ok || data?.error) {
+    const error = new Error(data?.error?.error_msg || `VK validation failed: HTTP ${response.status}`);
+    error.code = data?.error?.error_code || response.status;
+    throw error;
+  }
+  return true;
 }

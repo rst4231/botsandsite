@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 export const SYNC_MARKER_NAME = 'Business_sync';
-export const SYNC_MARKER_VALUE = 'done';
 
 export function normalizeWebhookPayload(payload) {
   if (Array.isArray(payload)) return payload.filter((item) => item && typeof item === 'object');
@@ -26,7 +25,6 @@ export function secretHashMatches(actual, expectedHashHex) {
 export function customVariablesFromContact(contact) {
   const variables = contact?.variables;
   if (!variables || typeof variables !== 'object' || Array.isArray(variables)) return [];
-
   return Object.entries(variables)
     .filter(([name, value]) => name !== SYNC_MARKER_NAME && value !== null && value !== undefined)
     .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
@@ -38,73 +36,52 @@ function eventIsEligible(event, botId, telegramBotId) {
   const eventExternalId = String(event?.bot?.external_id ?? '');
   return event?.service === 'telegram'
     && event?.title === 'incoming_message'
-    && (
-      (botId && eventBotId === String(botId))
-      || (telegramBotId && eventExternalId === String(telegramBotId))
-    );
+    && ((botId && eventBotId === String(botId)) || (telegramBotId && eventExternalId === String(telegramBotId)));
+}
+
+function sameValue(a, b) {
+  return String(a ?? '') === String(b ?? '') && typeof a === typeof b;
+}
+
+function sourceFingerprint(variables, tags) {
+  return `v2:${createHash('sha256').update(JSON.stringify({ variables, tags })).digest('hex')}`;
 }
 
 export async function processBusinessSyncEvent(event, options) {
-  const {
-    enabled = false,
-    botId,
-    telegramBotId,
-    client,
-  } = options || {};
-
+  const { enabled = false, botId, telegramBotId, client } = options || {};
   if (!enabled) return { status: 'disabled' };
   if (!eventIsEligible(event, botId, telegramBotId)) {
-    return {
-      status: 'ignored_event',
-      service: event?.service,
-      title: event?.title,
-      eventBotId: event?.bot?.id,
-      eventExternalId: event?.bot?.external_id,
-    };
+    return { status: 'ignored_event', service: event?.service, title: event?.title, eventBotId: event?.bot?.id, eventExternalId: event?.bot?.external_id };
   }
   if (!client) throw new Error('SendPulse client is required');
 
   const destinationId = event?.contact?.id;
   if (!destinationId) return { status: 'invalid_contact' };
-
   const destination = await client.getContact(destinationId);
   if (!destination?.id) return { status: 'destination_not_found' };
-
-  if (destination?.variables?.[SYNC_MARKER_NAME] === SYNC_MARKER_VALUE) {
-    return { status: 'already_done', destinationId };
-  }
-
   const telegramId = destination.telegram_id;
-  if (telegramId === null || telegramId === undefined || telegramId === '') {
-    return { status: 'missing_telegram_id', destinationId };
-  }
+  if (telegramId === null || telegramId === undefined || telegramId === '') return { status: 'missing_telegram_id', destinationId };
 
   const source = await client.getContactByTelegramId(botId, telegramId);
   if (!source?.id) return { status: 'no_source', destinationId };
-  if (source.id === destinationId) {
-    return { status: 'not_business_contact', destinationId, sourceId: source.id };
+  if (source.id === destinationId) return { status: 'not_business_contact', destinationId, sourceId: source.id };
+
+  const sourceVariables = customVariablesFromContact(source);
+  const destinationVariables = destination?.variables && typeof destination.variables === 'object' ? destination.variables : {};
+  const variables = sourceVariables.filter(({ variable_name, variable_value }) => !sameValue(destinationVariables[variable_name], variable_value));
+  const sourceTags = Array.isArray(source.tags) ? [...new Set(source.tags.filter((tag) => typeof tag === 'string' && tag.length > 0))] : [];
+  const destinationTags = new Set(Array.isArray(destination.tags) ? destination.tags : []);
+  const tags = sourceTags.filter((tag) => !destinationTags.has(tag));
+  const marker = sourceFingerprint(sourceVariables, sourceTags);
+
+  if (variables.length) await client.setVariables(destinationId, variables);
+  if (tags.length) await client.setTags(destinationId, tags);
+  if (destinationVariables[SYNC_MARKER_NAME] !== marker) {
+    await client.setVariables(destinationId, [{ variable_name: SYNC_MARKER_NAME, variable_value: marker }]);
   }
-
-  const variables = customVariablesFromContact(source);
-  const tags = Array.isArray(source.tags)
-    ? [...new Set(source.tags.filter((tag) => typeof tag === 'string' && tag.length > 0))]
-    : [];
-
-  if (variables.length > 0) {
-    await client.setVariables(destinationId, variables);
-  }
-
-  if (tags.length > 0) {
-    await client.setTags(destinationId, tags);
-  }
-
-  await client.setVariables(destinationId, [{
-    variable_name: SYNC_MARKER_NAME,
-    variable_value: SYNC_MARKER_VALUE,
-  }]);
 
   return {
-    status: 'success',
+    status: variables.length || tags.length ? 'success' : 'up_to_date',
     destinationId,
     sourceId: source.id,
     telegramId: String(telegramId),

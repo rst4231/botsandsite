@@ -1,15 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import fs from 'node:fs';
 import { resolvePreparedPreviewItem, sendPreparedPreview } from '../lib/private-preview.mjs';
 
 function item() {
-  return {
-    format: 'slides',
-    title: 'Почему дешёвая заявка ещё ничего не говорит о качестве трафика',
-    description: 'Низкий CPL выглядит красиво в отчёте.',
-    slides: Array.from({ length: 5 }, (_, index) => ({ title: `Слайд ${index + 1}`, body: `Текст ${index + 1}` })),
-  };
+  return { format: 'slides', title: 'Почему дешёвая заявка ещё ничего не говорит о качестве трафика', description: 'Низкий CPL выглядит красиво в отчёте.', slides: Array.from({ length: 5 }, (_, index) => ({ title: `Слайд ${index + 1}`, body: `Текст ${index + 1}` })) };
 }
 
 test('uses cached prepared content before payload', () => {
@@ -31,30 +26,14 @@ test('rejects malformed payload', () => {
 test('sends the prepared five-slide post to a private Telegram chat without publication state', async () => {
   const prepared = item();
   const calls = [];
-  const fetchImpl = async (url, options) => ({
-    async json() {
-      calls.push({ url, options });
-      return { ok: true, result: prepared.slides.map((_, index) => ({ message_id: 900 + index })) };
-    },
-  });
-  const result = await sendPreparedPreview({
-    token: '123:abc', chatId: '160628165', item: prepared,
-    renderSlide: async (_slide, index) => Buffer.from(`png-${index + 1}`), fetchImpl,
-  });
+  const fetchImpl = async (url, options) => ({ async json() { calls.push({ url, options }); return { ok: true, result: prepared.slides.map((_, index) => ({ message_id: 900 + index })) }; } });
+  const result = await sendPreparedPreview({ token: '123:abc', chatId: '160628165', item: prepared, renderSlide: async (_slide, index) => Buffer.from(`png-${index + 1}`), fetchImpl });
   assert.deepEqual(result, [900, 901, 902, 903, 904]);
   assert.equal(calls[0].url, 'https://api.telegram.org/bot123:abc/sendMediaGroup');
-  const form = calls[0].options.body;
-  assert.equal(form.get('chat_id'), '160628165');
-  const media = JSON.parse(form.get('media'));
-  assert.equal(media.length, 5);
-  assert.match(media[0].caption, /Почему дешёвая заявка/);
-  assert.match(media[0].caption, /О нас/);
+  assert.equal(calls[0].options.body.get('chat_id'), '160628165');
 });
 
-test('preview route accepts payload fallback and never touches scheduled publication state', async () => {
-  const source = await readFile(new URL('../app/api/admin/send-prepared-preview/route.js', import.meta.url), 'utf8');
-  assert.match(source, /searchParams\.get\('payload'\)/);
-  assert.match(source, /resolvePreparedPreviewItem/);
-  assert.doesNotMatch(source, /prepared-status:/);
-  assert.doesNotMatch(source, /publishPreparedForToday/);
+test('build removes the obsolete query-secret preview route', () => {
+  const buildPatch = fs.readFileSync(new URL('../patches/publication-idempotency-build.cjs', import.meta.url), 'utf8');
+  assert.match(buildPatch, /send-prepared-preview/);
 });

@@ -3,46 +3,25 @@ export const maxDuration = 60;
 
 import { getCache } from '@vercel/functions';
 import { authorizedContentRequest } from '../../../../lib/content-auth.js';
+import { getTelegramConfig } from '../../../../lib/server-config.js';
+import { loadDurableVkToken, validateVkToken } from '../../../../lib/vk-token-durable.mjs';
 
 const primary = getCache({ namespace: 'traffic-news-v4' });
 const secondary = getCache({ namespace: 'traffic-news-vk-v1' });
 const TTL = 60 * 60 * 24 * 730;
-const VK_API_VERSION = '5.199';
 const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 
-async function validateToken(token) {
-  const body = new URLSearchParams({
-    owner_id: `-${VK_GROUP_ID}`,
-    access_token: token,
-    v: VK_API_VERSION,
-  });
-  const response = await fetch('https://api.vk.com/method/stories.get', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body,
-    cache: 'no-store',
-  });
-  const data = await response.json();
-  if (data?.error) {
-    const error = new Error(data.error.error_msg || 'VK token validation failed');
-    error.code = data.error.error_code || response.status;
-    throw error;
-  }
-  return true;
-}
-
-export async function GET(request) {
+export async function POST(request) {
   if (!authorizedContentRequest(request)) return new Response('Unauthorized', { status: 401 });
-  const token = String(request.nextUrl.searchParams.get('token') || '').trim();
-  if (!token) return Response.json({ ok: false, error: 'token is required' }, { status: 400 });
-
   try {
-    await validateToken(token);
+    const { token: telegramToken } = getTelegramConfig();
+    const token = await loadDurableVkToken(telegramToken);
+    await validateVkToken(token, { groupId: VK_GROUP_ID });
     await Promise.all([
       primary.set('vk-access-token-v1', token, { ttl: TTL, tags: ['vk-config'] }),
       secondary.set('access-token', token, { ttl: TTL, tags: ['vk-config'] }),
     ]);
-    return Response.json({ ok: true, configured: true, tokenWorks: true });
+    return Response.json({ ok: true, configured: true, tokenWorks: true, source: 'durable' });
   } catch (error) {
     return Response.json({
       ok: false,

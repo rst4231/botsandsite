@@ -29,9 +29,14 @@ source = source.replace(
   '  const vk = await getVkConfigurationStatus();',
   '  const vk = await getPreparedVkConfigurationStatus();',
 );
+source = source.replace(
+  '    vkConfigured: vk.configured,\n    vkGroupId: vk.groupId,',
+  "    vkConfigured: vk.configured,\n    vkHealthy: Boolean(vk.healthy),\n    vkError: vk.error || null,\n    vkGroupId: vk.groupId,",
+);
 if (!source.includes("import { getPreparedVkConfigurationStatus } from '../../../lib/prepared-content.js';")) {
   throw new Error('Could not patch health route to durable VK status');
 }
+if (!source.includes('vkHealthy: Boolean(vk.healthy)')) throw new Error('Could not patch VK health output');
 
 const writeMarker = 'fs.writeFileSync(preparedContentPath, preparedContent);';
 if (!source.includes(writeMarker)) throw new Error('Could not locate prepared-content write marker');
@@ -40,7 +45,7 @@ const transform = [
   "const vkDurableImportMarker = \"import { getTelegramConfig } from './server-config.js';\";",
   "if (!preparedContent.includes(\"from './vk-token-durable.mjs'\")) {",
   "  if (!preparedContent.includes(vkDurableImportMarker)) throw new Error('Could not locate Telegram config import for VK durable fallback');",
-  "  preparedContent = preparedContent.replace(vkDurableImportMarker, vkDurableImportMarker + \"\\nimport { loadDurableVkToken } from './vk-token-durable.mjs';\");",
+  "  preparedContent = preparedContent.replace(vkDurableImportMarker, vkDurableImportMarker + \"\\nimport { loadDurableVkToken, validateVkToken } from './vk-token-durable.mjs';\");",
   "}",
   "",
   "const vkTokenPattern = /async function getVkAccessToken\\(\\) \\{[\\s\\S]*?\\n\\}/;",
@@ -65,7 +70,7 @@ const transform = [
   "  \"}\",",
   "  \"\",",
   "  \"export async function getPreparedVkConfigurationStatus() {\",",
-  "  \"  return { configured: Boolean(await getVkAccessToken()), groupId: VK_GROUP_ID };\",",
+  "  \"  return { configured: Boolean(await getVkAccessToken()), healthy: false, groupId: VK_GROUP_ID, error: null };\",",
   "  \"}\",",
   "].join('\\n'));",
   "if (!preparedContent.includes('getPreparedVkConfigurationStatus')) throw new Error('Durable VK status export was not injected');",
