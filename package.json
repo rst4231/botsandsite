@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "node patches/prebuild-fixes.cjs && node patches/story-link-build.cjs && node patches/runtime-content-build.cjs && node patches/publication-hardening.cjs && node patches/vk-token-durable-build.cjs && node patches/publication-idempotency-build.cjs && node --test tests/publication-hardening.test.mjs && node --test tests/publish-route-status.test.mjs && node build.cjs && npm test",
+    "build": "node patches/prebuild-fixes.cjs && node patches/story-link-build.cjs && node patches/runtime-content-build.cjs && node patches/publication-hardening.cjs && node patches/vk-token-durable-build.cjs && node patches/publication-idempotency-build.cjs && node --test tests/publication-hardening.test.mjs && node --test tests/publish-route-status.test.mjs && node build.cjs && node --test tests/*.test.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
