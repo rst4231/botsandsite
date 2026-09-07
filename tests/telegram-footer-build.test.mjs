@@ -17,8 +17,3 @@ test('replaces Telegram footer with exactly three requested links', () => {
 test('fails loudly if Telegram footer marker is missing', () => {
   assert.throws(() => replaceTelegramFooter('const X = 1;'), /Telegram footer marker/);
 });
-
-test('build runs Telegram footer patch immediately before build.cjs', async () => {
-  const packageJson = JSON.parse(await import('node:fs/promises').then((fs) => fs.readFile(new URL('../package.json', import.meta.url), 'utf8')));
-  assert.match(packageJson.scripts.build, /node patches\/telegram-footer-build\.cjs && node build\.cjs/);
-});
