@@ -12,7 +12,7 @@ const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
 const PUBLIC_CHANNEL_FEED_URL = 'https://t.me/s/teamcpalh';
 
 const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/c/1394610823/767">О нас</a> | <a href="https://t.me/c/1394610823/779">Кейсы</a> | <a href="https://app.lava.top/products/1a995492-be5d-4957-8dfb-29bb21d7f387">Руководство</a> | <a href="https://t.me/+B7YJykmJSkEzMmJi">Канал</a>';
-const VK_FOOTER = '\n\nРекомендуем изучить:\n[https://vk.ru/app5898182_-160851478#page=67e5217dfe30f032b45b7c8|Теория]\n[https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Практика]';
+const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
 const HISTORY_KEY = 'prepared-content-history-v1';
 const FORBIDDEN_BRANDS = /(?:\bMeta\b|\bFacebook\b|\bInstagram\b|\bМета\b|Фейсбук|Инстаграм)/i;
 const KINDS = new Set(['practical', 'team', 'beginner', 'events']);

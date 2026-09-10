@@ -12,7 +12,7 @@ const cache = getCache({ namespace: 'traffic-news-v4' });
 const VK_API_VERSION = '5.199';
 const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
-const VK_FOOTER = '\n\nРекомендуем изучить:\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория]\n[https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Практика]';
+const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
 
 function moscowDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);

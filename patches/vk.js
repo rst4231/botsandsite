@@ -2,7 +2,7 @@ import { getCache } from '@vercel/functions';
 
 const VK_API_VERSION = '5.199';
 const VK_SCREEN_NAME = 'profit_v_fb';
-const VK_FOOTER = '\n\nРекомендуем изучить:\n[Теория](https://vk.ru/app5898182_-160851478#page=67e5217dfe30f032b45b7c82)\n[Практика](https://vk.ru/away.php?to=https%3A%2F%2Fvk.com%2Fapp5898182_-160851478%23s%3D3112330%26force%3D1&utf=1)';
+const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
 const TELEGRAM_FOOTER_START = '\n\n• <a href="https://t.me/c/1394610823/767">О нас</a>';
 const cache = getCache({ namespace: 'traffic-news-vk-v1' });
 const CACHE_TTL = 60 * 60 * 24 * 730;
