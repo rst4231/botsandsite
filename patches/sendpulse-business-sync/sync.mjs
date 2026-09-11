@@ -66,6 +66,14 @@ export async function processBusinessSyncEvent(event, options) {
   if (!source?.id) return { status: 'no_source', destinationId };
   if (source.id === destinationId) return { status: 'not_business_contact', destinationId, sourceId: source.id };
 
+  const wroteDmVariable = { variable_name: 'Написал в лс', variable_value: 'Да' };
+  const currentWroteDmValue = source?.variables && typeof source.variables === 'object' && !Array.isArray(source.variables)
+    ? source.variables[wroteDmVariable.variable_name]
+    : undefined;
+  if (!sameValue(currentWroteDmValue, wroteDmVariable.variable_value)) {
+    await client.setVariables(source.id, [wroteDmVariable]);
+  }
+
   const sourceVariables = customVariablesFromContact(source);
   const destinationVariables = destination?.variables && typeof destination.variables === 'object' ? destination.variables : {};
   const variables = sourceVariables.filter(({ variable_name, variable_value }) => !sameValue(destinationVariables[variable_name], variable_value));

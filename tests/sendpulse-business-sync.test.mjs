@@ -87,12 +87,34 @@ test('safely skips when the ordinary Irina subscriber cannot be resolved', async
   assert.equal(client.calls.filter(([name]) => name.startsWith('set')).length, 0);
 });
 
+test('marks original Irina contact as wrote in DM when a Business message arrives', async () => {
+  const client = fakeClient({ source: { id: 'normal-contact', telegram_id: '123456789', variables: { NAME: 'Artem' }, tags: [] } });
+  await processBusinessSyncEvent(event(), { enabled: true, botId: BOT_ID, client });
+  const flagWrites = client.calls.filter(([name, contactId, variables]) =>
+    name === 'setVariables'
+    && contactId === 'normal-contact'
+    && variables?.some((variable) => variable.variable_name === 'Написал в лс' && variable.variable_value === 'Да')
+  );
+  assert.equal(flagWrites.length, 1);
+});
+
+test('does not rewrite wrote-in-DM flag when it is already Да', async () => {
+  const client = fakeClient({ source: { id: 'normal-contact', telegram_id: '123456789', variables: { NAME: 'Artem', 'Написал в лс': 'Да' }, tags: [] } });
+  await processBusinessSyncEvent(event(), { enabled: true, botId: BOT_ID, client });
+  const flagWrites = client.calls.filter(([name, contactId, variables]) =>
+    name === 'setVariables'
+    && contactId === 'normal-contact'
+    && variables?.some((variable) => variable.variable_name === 'Написал в лс')
+  );
+  assert.equal(flagWrites.length, 0);
+});
+
 test('copies every changed custom variable and missing tag, then writes fingerprint marker last', async () => {
   const client = fakeClient({ source: { id: 'normal-contact', telegram_id: '123456789', variables: { NAME: 'Artem', AGE: 31, Goal: 'profit', Business_sync: 'old-value' }, tags: ['купил', 'лид', 'купил'] } });
   const result = await processBusinessSyncEvent(event(), { enabled: true, botId: BOT_ID, client });
   assert.deepEqual(result, { status: 'success', destinationId: 'business-contact', sourceId: 'normal-contact', telegramId: '123456789', variablesCopied: 3, tagsCopied: 2 });
-  const writes = client.calls.filter(([name]) => name === 'setVariables' || name === 'setTags');
-  assert.deepEqual(writes.slice(0, 2), [
+  const destinationWrites = client.calls.filter(([name, contactId]) => (name === 'setVariables' || name === 'setTags') && contactId === 'business-contact');
+  assert.deepEqual(destinationWrites.slice(0, 2), [
     ['setVariables', 'business-contact', [
       { variable_name: 'NAME', variable_value: 'Artem' },
       { variable_name: 'AGE', variable_value: 31 },
@@ -100,7 +122,7 @@ test('copies every changed custom variable and missing tag, then writes fingerpr
     ]],
     ['setTags', 'business-contact', ['купил', 'лид']],
   ]);
-  const marker = writes[2][2][0];
+  const marker = destinationWrites[2][2][0];
   assert.equal(marker.variable_name, 'Business_sync');
   assert.match(marker.variable_value, /^v2:[a-f0-9]{64}$/);
 });
