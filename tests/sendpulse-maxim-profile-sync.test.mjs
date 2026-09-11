@@ -47,6 +47,16 @@ test('separate Maxim sync preserves filled fields and appends INFO only once', a
   assert.equal(api.writes[0].variables[0].variable_value, `Старое\n\nАнкета из Ирины:\n${profile}`);
 });
 
+test('separate Maxim sync still processes a cross-bot contact when SendPulse returns the same contact ID', async () => {
+  const api = client({ sourceVariables: { NAME: 'Антон', 'Возраст': 30 } });
+  const originalGetContactByTelegramId = api.getContactByTelegramId;
+  api.getContactByTelegramId = async (...args) => ({ ...(await originalGetContactByTelegramId(...args)), id: 'maxim-contact' });
+  const notesApi = { async listNotes() { return []; }, async createNote() {} };
+  const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
+  assert.equal(result.status, 'success');
+  assert.equal(api.writes[0].variables[0].variable_name, 'NAME');
+});
+
 test('old Business Sync function remains Irina-only and keeps Написал в лс behavior', async () => {
   const api = client({ sourceVariables: { NAME: 'Антон' } });
   const result = await processBusinessSyncEvent(maximEvent(), { enabled: true, botId: IRINA_BOT_ID, telegramBotId: IRINA_TG_BOT_ID, client: api });

@@ -202,7 +202,6 @@ export async function processMaximProfileSyncEvent(event, options) {
   if (telegramId === null || telegramId === undefined || telegramId === '') return { status: 'missing_telegram_id', destinationId };
   const source = await client.getContactByTelegramId(sourceBotId, telegramId);
   if (!source?.id) return { status: 'no_source', destinationId };
-  if (source.id === destinationId) return { status: 'not_business_contact', destinationId, sourceId: source.id };
 
   const sourceVariables = source.variables && typeof source.variables === 'object' && !Array.isArray(source.variables) ? source.variables : {};
   const destinationVariables = destination.variables && typeof destination.variables === 'object' && !Array.isArray(destination.variables) ? destination.variables : {};
