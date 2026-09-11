@@ -5,12 +5,15 @@ import { createSendPulseClient } from '../../../../lib/sendpulse-business-sync/c
 import {
   normalizeWebhookPayload,
   processBusinessSyncEvent,
+  processMaximProfileSyncEvent,
   secretHashMatches,
   secretMatches,
 } from '../../../../lib/sendpulse-business-sync/sync.mjs';
 
 const DEFAULT_IRINA_BOT_ID = '6671465ac84ab24b4702fa25';
 const DEFAULT_IRINA_TELEGRAM_ID = '6934241673';
+const MAXIM_BOT_ID = '64819370817732c35a00574c';
+const MAXIM_TELEGRAM_BOT_ID = '5882326561';
 const FALLBACK_WEBHOOK_SECRET_SHA256 = [
   'bda55a2f3cc14bf5',
   '79b7a00cfbde778f',
@@ -110,12 +113,16 @@ export async function POST(request) {
   const results = [];
   try {
     for (const event of events) {
-      const result = await processBusinessSyncEvent(event, {
-        enabled: true,
-        botId,
-        telegramBotId,
-        client,
-      });
+      const isMaximEvent = String(event?.bot?.id || '') === MAXIM_BOT_ID
+        || String(event?.bot?.external_id || '') === MAXIM_TELEGRAM_BOT_ID;
+      const result = isMaximEvent
+        ? await processMaximProfileSyncEvent(event, {
+          enabled: true,
+          sourceBotId: botId,
+          sourceTelegramBotId: telegramBotId,
+          client,
+        })
+        : await processBusinessSyncEvent(event, { enabled: true, botId, telegramBotId, client });
       results.push(result);
       logResult(result);
     }
