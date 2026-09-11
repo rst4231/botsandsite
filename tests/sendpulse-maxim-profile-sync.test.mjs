@@ -57,6 +57,62 @@ test('separate Maxim sync still processes a cross-bot contact when SendPulse ret
   assert.equal(api.writes[0].variables[0].variable_name, 'NAME');
 });
 
+test('separate Maxim sync uses the configured static API key for operator notes', async () => {
+  const api = client({ sourceVariables: { NAME: 'Руста', 'Возраст': 34, 'Опыт': 'Новичок' } });
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SENDPULSE_API_KEY;
+  const originalClientId = process.env.SENDPULSE_CLIENT_ID;
+  const originalClientSecret = process.env.SENDPULSE_CLIENT_SECRET;
+  const requests = [];
+  process.env.SENDPULSE_API_KEY = 'test-static-api-key';
+  delete process.env.SENDPULSE_CLIENT_ID;
+  delete process.env.SENDPULSE_CLIENT_SECRET;
+  globalThis.fetch = async (url, init = {}) => {
+    requests.push({ url: String(url), method: init.method || 'GET', authorization: init.headers?.authorization });
+    const data = String(url).endsWith('/createNote') ? { id: 'note-1' } : [];
+    return new Response(JSON.stringify({ success: true, data }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const result = await processMaximProfileSyncEvent(maximEvent(), options(api));
+    assert.equal(result.status, 'success');
+    assert.deepEqual(requests.map(({ method, authorization }) => ({ method, authorization })), [
+      { method: 'GET', authorization: 'Bearer test-static-api-key' },
+      { method: 'POST', authorization: 'Bearer test-static-api-key' },
+    ]);
+    assert.equal(requests.some(({ url }) => url.includes('/oauth/access_token')), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SENDPULSE_API_KEY;
+    else process.env.SENDPULSE_API_KEY = originalApiKey;
+    if (originalClientId === undefined) delete process.env.SENDPULSE_CLIENT_ID;
+    else process.env.SENDPULSE_CLIENT_ID = originalClientId;
+    if (originalClientSecret === undefined) delete process.env.SENDPULSE_CLIENT_SECRET;
+    else process.env.SENDPULSE_CLIENT_SECRET = originalClientSecret;
+  }
+});
+
+test('separate Maxim sync saves NAME, Возраст and INFO before a note API failure', async () => {
+  const api = client({ sourceVariables: { NAME: 'Руста', 'Возраст': 34, 'Опыт': 'Новичок' } });
+  const notesApi = {
+    async listNotes() { throw new Error('notes unavailable'); },
+    async createNote() {},
+  };
+
+  await assert.rejects(
+    processMaximProfileSyncEvent(maximEvent(), options(api, notesApi)),
+    /notes unavailable/,
+  );
+  assert.deepEqual(api.writes[0].variables, [
+    { variable_name: 'NAME', variable_value: 'Руста' },
+    { variable_name: 'Возраст', variable_value: '34' },
+    { variable_name: 'INFO', variable_value: 'Имя: Руста\nВозраст: 34\nОпыт: Новичок' },
+  ]);
+});
+
 test('old Business Sync function remains Irina-only and keeps Написал в лс behavior', async () => {
   const api = client({ sourceVariables: { NAME: 'Антон' } });
   const result = await processBusinessSyncEvent(maximEvent(), { enabled: true, botId: IRINA_BOT_ID, telegramBotId: IRINA_TG_BOT_ID, client: api });

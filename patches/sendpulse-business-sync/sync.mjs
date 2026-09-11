@@ -155,6 +155,8 @@ function splitMaximProfileNote(text, maxLength = MAXIM_PROFILE_NOTE_MAX_LENGTH) 
 let profileNotesTokenCache = { token: '', expiresAt: 0 };
 
 async function profileNotesToken() {
+  const apiKey = process.env.SENDPULSE_API_KEY;
+  if (apiKey) return apiKey;
   const now = Date.now();
   if (profileNotesTokenCache.token && profileNotesTokenCache.expiresAt > now + 60_000) return profileNotesTokenCache.token;
   const clientId = process.env.SENDPULSE_CLIENT_ID;
@@ -208,6 +210,8 @@ export async function processMaximProfileSyncEvent(event, options) {
   const profileVariables = ['NAME', 'Возраст'].filter((name) => profileHasValue(sourceVariables[name]) && !profileHasValue(destinationVariables[name])).map((name) => ({ variable_name: name, variable_value: String(sourceVariables[name]) }));
   const profileNote = buildMaximProfileNote(sourceVariables, technicalProfileVariables || profileTechnicalVariables());
   const info = buildMaximInfo(destinationVariables.INFO, profileNote);
+  const variables = [...profileVariables, ...(info.changed ? [{ variable_name: 'INFO', variable_value: info.value }] : [])];
+  if (variables.length) await client.setVariables(destinationId, variables);
   let profileNotesCreated = 0;
   if (profileNote) {
     const api = notesApi || defaultMaximNotesApi();
@@ -215,7 +219,5 @@ export async function processMaximProfileSyncEvent(event, options) {
     const texts = new Set((Array.isArray(existing) ? existing : []).map((note) => String(note?.text || '')));
     for (const text of splitMaximProfileNote(profileNote)) if (!texts.has(text)) { await api.createNote({ botId: MAXIM_BOT_ID, contactId: destinationId, text }); profileNotesCreated += 1; }
   }
-  const variables = [...profileVariables, ...(info.changed ? [{ variable_name: 'INFO', variable_value: info.value }] : [])];
-  if (variables.length) await client.setVariables(destinationId, variables);
   return { status: variables.length || profileNotesCreated ? 'success' : 'up_to_date', destinationId, sourceId: source.id, telegramId: String(telegramId), variablesCopied: profileVariables.length, infoUpdated: info.changed, profileNotesCreated, sync: 'irina_to_maxim' };
 }
