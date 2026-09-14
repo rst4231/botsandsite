@@ -11,6 +11,7 @@ test('calendar build hook wraps the generated home page before Next build', () =
   const transformed = transformBuild(`before\n${marker}\nafter`);
   assert.match(transformed, /legacy-page\.jsx/);
   assert.match(transformed, /calendar-page\.jsx/);
+  assert.match(transformed, /publication-calendar-client\.jsx/);
   assert.match(transformed, /publication-calendar\.css/);
   assert.match(transformed, /publication-calendar\.mjs/);
   assert.ok(transformed.indexOf('calendar-page.jsx') < transformed.indexOf(marker));
