@@ -38,5 +38,10 @@ export default async function Page() {
   const now = new Date();
   const items = await addPreparedContent(buildPublicationCalendar(now, 30));
   const next = nextPublication(items, now);
-  return <PublicationCalendarClient items={items} next={next} />;
+  return (
+    <>
+      <title>Помощник</title>
+      <PublicationCalendarClient items={items} next={next} />
+    </>
+  );
 }

@@ -31,3 +31,8 @@ test('calendar page no longer renders the legacy deployment status block', () =>
   assert.doesNotMatch(page, /LegacyPage/);
   assert.doesNotMatch(page, /legacy-page\.jsx/);
 });
+
+test('calendar page sets the browser title to Помощник', () => {
+  const page = fs.readFileSync(pagePath, 'utf8');
+  assert.match(page, /<title>Помощник<\/title>/);
+});
