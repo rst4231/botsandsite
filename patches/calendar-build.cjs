@@ -8,14 +8,27 @@ const CALENDAR_INJECTION = `const calendarPageSourcePath = path.join(cwd, 'patch
 const calendarClientSourcePath = path.join(cwd, 'patches', 'publication-calendar-client.jsx');
 const calendarCssSourcePath = path.join(cwd, 'patches', 'publication-calendar.css');
 const calendarLogicSourcePath = path.join(cwd, 'patches', 'publication-calendar.mjs');
+const siteBrandPath = path.join(cwd, 'patches', 'site-brand.cjs');
 if (fs.existsSync(pagePath)) {
-  const legacyPagePath = path.join(cwd, 'app', 'legacy-page.jsx');
-  fs.copyFileSync(pagePath, legacyPagePath);
   fs.copyFileSync(calendarPageSourcePath, pagePath);
   fs.copyFileSync(calendarClientSourcePath, path.join(cwd, 'app', 'publication-calendar-client.jsx'));
   fs.copyFileSync(calendarCssSourcePath, path.join(cwd, 'app', 'publication-calendar.css'));
   fs.copyFileSync(calendarLogicSourcePath, path.join(cwd, 'lib', 'publication-calendar.mjs'));
 }
+
+const { transformLayout, SITE_ICON_SVG } = require(siteBrandPath);
+const layoutCandidates = [
+  path.join(cwd, 'app', 'layout.jsx'),
+  path.join(cwd, 'app', 'layout.js'),
+  path.join(cwd, 'app', 'layout.tsx'),
+  path.join(cwd, 'app', 'layout.ts'),
+];
+const layoutPath = layoutCandidates.find((candidate) => fs.existsSync(candidate));
+if (layoutPath) {
+  const layoutSource = fs.readFileSync(layoutPath, 'utf8');
+  fs.writeFileSync(layoutPath, transformLayout(layoutSource));
+}
+fs.writeFileSync(path.join(cwd, 'app', 'icon.svg'), SITE_ICON_SVG);
 
 `;
 
