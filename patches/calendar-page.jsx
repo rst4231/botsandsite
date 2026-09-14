@@ -1,6 +1,5 @@
 import React from 'react';
 import { getCache } from '@vercel/functions';
-import LegacyPage from './legacy-page.jsx';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
 import {
   buildPublicationCalendar,
@@ -39,10 +38,5 @@ export default async function Page() {
   const now = new Date();
   const items = await addPreparedContent(buildPublicationCalendar(now, 30));
   const next = nextPublication(items, now);
-  return (
-    <>
-      <LegacyPage />
-      <PublicationCalendarClient items={items} next={next} />
-    </>
-  );
+  return <PublicationCalendarClient items={items} next={next} />;
 }
