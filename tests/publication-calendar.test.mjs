@@ -43,3 +43,49 @@ test('next publication still returns today before 18:40 Moscow time', () => {
   const next = nextPublication(items, new Date('2026-08-30T14:00:00Z'));
   assert.equal(next.dateKey, '2026-08-30');
 });
+
+test('calendar preview keeps only the public prepared post fields', async () => {
+  const calendar = await import('../patches/publication-calendar.mjs');
+  assert.equal(typeof calendar.calendarPreparedPreview, 'function');
+  const preview = calendar.calendarPreparedPreview({
+    title: 'Заголовок',
+    description: 'Описание',
+    format: 'slides',
+    slides: [
+      { title: 'Слайд 1', body: 'Текст 1' },
+      { title: 'Слайд 2', body: 'Текст 2' },
+    ],
+    fingerprint: 'internal-secret',
+    stagedAt: '2026-09-14T06:00:00.000Z',
+  });
+  assert.deepEqual(preview, {
+    title: 'Заголовок',
+    description: 'Описание',
+    body: '',
+    format: 'slides',
+    slides: [
+      { title: 'Слайд 1', body: 'Текст 1' },
+      { title: 'Слайд 2', body: 'Текст 2' },
+    ],
+  });
+});
+
+test('calendar preview preserves a text post body without internal fields', async () => {
+  const calendar = await import('../patches/publication-calendar.mjs');
+  assert.equal(typeof calendar.calendarPreparedPreview, 'function');
+  const preview = calendar.calendarPreparedPreview({
+    title: 'События недели',
+    body: 'Полный текст поста',
+    description: 'ignored',
+    format: 'text',
+    slides: [{ title: 'ignored', body: 'ignored' }],
+    fingerprint: 'internal-secret',
+  });
+  assert.deepEqual(preview, {
+    title: 'События недели',
+    description: '',
+    body: 'Полный текст поста',
+    format: 'text',
+    slides: [],
+  });
+});
