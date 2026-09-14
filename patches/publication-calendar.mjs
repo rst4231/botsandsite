@@ -106,4 +106,34 @@ export function nextPublication(items, now = new Date()) {
   }) || null;
 }
 
+export function calendarPreparedPreview(prepared) {
+  if (!prepared || typeof prepared !== 'object' || Array.isArray(prepared)) return null;
+  const title = String(prepared.title || '').trim();
+  if (!title) return null;
+
+  if (prepared.format === 'text') {
+    return {
+      title,
+      description: '',
+      body: String(prepared.body || '').trim(),
+      format: 'text',
+      slides: [],
+    };
+  }
+
+  if (prepared.format !== 'slides') return null;
+  return {
+    title,
+    description: String(prepared.description || '').trim(),
+    body: '',
+    format: 'slides',
+    slides: Array.isArray(prepared.slides)
+      ? prepared.slides.map((slide) => ({
+          title: String(slide?.title || '').trim(),
+          body: String(slide?.body || '').trim(),
+        }))
+      : [],
+  };
+}
+
 export const PUBLICATION_RUBRICS = RUBRICS;
