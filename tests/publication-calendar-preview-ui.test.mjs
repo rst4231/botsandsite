@@ -25,3 +25,9 @@ test('calendar uses a client dialog to open the prepared post by date', () => {
   assert.match(page, /preparedContent/);
   assert.match(page, /PublicationCalendarClient/);
 });
+
+test('calendar page no longer renders the legacy deployment status block', () => {
+  const page = fs.readFileSync(pagePath, 'utf8');
+  assert.doesNotMatch(page, /LegacyPage/);
+  assert.doesNotMatch(page, /legacy-page\.jsx/);
+});
