@@ -5,12 +5,14 @@ const BUILD_MARKER = "const testResult = spawnSync(process.execPath, ['--test', 
 const INJECTION_MARKER = "const calendarPageSourcePath = path.join(cwd, 'patches', 'calendar-page.jsx');";
 
 const CALENDAR_INJECTION = `const calendarPageSourcePath = path.join(cwd, 'patches', 'calendar-page.jsx');
+const calendarClientSourcePath = path.join(cwd, 'patches', 'publication-calendar-client.jsx');
 const calendarCssSourcePath = path.join(cwd, 'patches', 'publication-calendar.css');
 const calendarLogicSourcePath = path.join(cwd, 'patches', 'publication-calendar.mjs');
 if (fs.existsSync(pagePath)) {
   const legacyPagePath = path.join(cwd, 'app', 'legacy-page.jsx');
   fs.copyFileSync(pagePath, legacyPagePath);
   fs.copyFileSync(calendarPageSourcePath, pagePath);
+  fs.copyFileSync(calendarClientSourcePath, path.join(cwd, 'app', 'publication-calendar-client.jsx'));
   fs.copyFileSync(calendarCssSourcePath, path.join(cwd, 'app', 'publication-calendar.css'));
   fs.copyFileSync(calendarLogicSourcePath, path.join(cwd, 'lib', 'publication-calendar.mjs'));
 }
