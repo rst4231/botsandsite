@@ -16,8 +16,26 @@ function displayDate(item) {
   return `${item.day} ${MONTHS[item.month - 1]}`;
 }
 
-function CalendarDay({ item, onOpen }) {
+function configureTelegramWebApp() {
+  const webApp = window.Telegram?.WebApp;
+  if (!webApp) return false;
+
+  webApp.ready();
+  webApp.expand();
+  if (typeof webApp.disableVerticalSwipes === 'function') {
+    webApp.disableVerticalSwipes();
+  }
+  return true;
+}
+
+function CalendarDay({ item, onOpen, isToday }) {
   const title = item.preparedTitle || item.label;
+  const className = [
+    'publication-calendar__day',
+    item.scheduled ? 'publication-calendar__day--scheduled publication-calendar__day-button' : '',
+    isToday ? 'publication-calendar__day--today' : '',
+  ].filter(Boolean).join(' ');
+
   const content = (
     <>
       <div className="publication-calendar__date-line">
@@ -41,7 +59,7 @@ function CalendarDay({ item, onOpen }) {
 
   if (!item.scheduled) {
     return (
-      <article className="publication-calendar__day" data-date={item.dateKey}>
+      <article className={className} data-date={item.dateKey} aria-current={isToday ? 'date' : undefined}>
         {content}
       </article>
     );
@@ -50,8 +68,9 @@ function CalendarDay({ item, onOpen }) {
   return (
     <button
       type="button"
-      className="publication-calendar__day publication-calendar__day--scheduled publication-calendar__day-button"
+      className={className}
       data-date={item.dateKey}
+      aria-current={isToday ? 'date' : undefined}
       onClick={() => onOpen(item)}
       aria-label={`Открыть пост на ${displayDate(item)}`}
     >
@@ -73,6 +92,7 @@ function PostPreviewDialog({ item, onClose }) {
         aria-labelledby={dialogTitleId}
         onMouseDown={(event) => event.stopPropagation()}
       >
+        <div className="publication-calendar__dialog-handle" aria-hidden="true" />
         <div className="publication-calendar__dialog-header">
           <div>
             <span className={`publication-calendar__kind publication-calendar__kind--${item.kind}`}>
@@ -130,6 +150,25 @@ function PostPreviewDialog({ item, onClose }) {
 export default function PublicationCalendarClient({ items, next }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const leadingBlanks = items.length ? mondayIndex(items[0].weekday) : 0;
+  const todayKey = items[0]?.dateKey;
+
+  useEffect(() => {
+    if (configureTelegramWebApp()) return undefined;
+
+    const existingScript = document.querySelector('script[data-telegram-web-app]');
+    const script = existingScript || document.createElement('script');
+    const onLoad = () => configureTelegramWebApp();
+
+    script.addEventListener('load', onLoad);
+    if (!existingScript) {
+      script.src = 'https://telegram.org/js/telegram-web-app.js';
+      script.async = true;
+      script.dataset.telegramWebApp = 'true';
+      document.head.appendChild(script);
+    }
+
+    return () => script.removeEventListener('load', onLoad);
+  }, []);
 
   useEffect(() => {
     if (!selectedItem) return undefined;
@@ -151,8 +190,8 @@ export default function PublicationCalendarClient({ items, next }) {
         <div className="publication-calendar__intro">
           <div>
             <span className="publication-calendar__eyebrow">Контент-план</span>
-            <h2 id="publication-calendar-title">Календарь публикаций на 30 дней</h2>
-            <p>Нажмите на день с публикацией, чтобы посмотреть сам пост. Время указано по Москве.</p>
+            <h2 id="publication-calendar-title">Календарь публикаций</h2>
+            <p>План на 30 дней. Нажмите на публикацию, чтобы открыть готовый пост.</p>
           </div>
           {next ? (
             <div className="publication-calendar__next">
@@ -175,6 +214,7 @@ export default function PublicationCalendarClient({ items, next }) {
             <CalendarDay
               key={item.dateKey}
               item={item}
+              isToday={item.dateKey === todayKey}
               onOpen={() => setSelectedItem(item)}
             />
           ))}
