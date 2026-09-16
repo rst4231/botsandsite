@@ -1,5 +1,6 @@
 import React from 'react';
 import { getCache } from '@vercel/functions';
+import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
 import {
   buildPublicationCalendar,
@@ -16,7 +17,9 @@ async function addPreparedContent(items) {
   const scheduled = items.filter((item) => item.scheduled);
   const pairs = await Promise.all(scheduled.map(async (item) => {
     try {
-      const prepared = await cache.get(`prepared-content:${item.dateKey}`);
+      const cachedPrepared = await cache.get(`prepared-content:${item.dateKey}`);
+      const durableFallback = cachedPrepared ? null : await loadRuntimeContentIssue(item.dateKey);
+      const prepared = cachedPrepared || durableFallback?.item || null;
       return [item.dateKey, calendarPreparedPreview(prepared)];
     } catch (error) {
       console.error('PUBLICATION_CALENDAR_PREPARED_READ_ERROR', item.dateKey, error);

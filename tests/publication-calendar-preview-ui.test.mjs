@@ -26,6 +26,14 @@ test('calendar uses a client dialog to open the prepared post by date', () => {
   assert.match(page, /PublicationCalendarClient/);
 });
 
+test('calendar falls back to durable prepared content when runtime cache is empty', () => {
+  const page = fs.readFileSync(pagePath, 'utf8');
+  assert.match(page, /loadRuntimeContentIssue/);
+  assert.match(page, /const cachedPrepared = await cache\.get/);
+  assert.match(page, /const durableFallback = cachedPrepared \? null : await loadRuntimeContentIssue\(item\.dateKey\)/);
+  assert.match(page, /const prepared = cachedPrepared \|\| durableFallback\?\.item \|\| null/);
+});
+
 test('calendar page no longer renders the legacy deployment status block', () => {
   const page = fs.readFileSync(pagePath, 'utf8');
   assert.doesNotMatch(page, /LegacyPage/);
