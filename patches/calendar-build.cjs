@@ -7,12 +7,17 @@ const INJECTION_MARKER = "const calendarPageSourcePath = path.join(cwd, 'patches
 const CALENDAR_INJECTION = `const calendarPageSourcePath = path.join(cwd, 'patches', 'calendar-page.jsx');
 const calendarClientSourcePath = path.join(cwd, 'patches', 'publication-calendar-client.jsx');
 const calendarCssSourcePath = path.join(cwd, 'patches', 'publication-calendar.css');
+const calendarResponsiveCssSourcePath = path.join(cwd, 'patches', 'publication-calendar-responsive.css');
 const calendarLogicSourcePath = path.join(cwd, 'patches', 'publication-calendar.mjs');
 const siteBrandPath = path.join(cwd, 'patches', 'site-brand.cjs');
 if (fs.existsSync(pagePath)) {
+  const calendarCss = [
+    fs.readFileSync(calendarCssSourcePath, 'utf8').trimEnd(),
+    fs.readFileSync(calendarResponsiveCssSourcePath, 'utf8').trim(),
+  ].join('\\n\\n');
   fs.copyFileSync(calendarPageSourcePath, pagePath);
   fs.copyFileSync(calendarClientSourcePath, path.join(cwd, 'app', 'publication-calendar-client.jsx'));
-  fs.copyFileSync(calendarCssSourcePath, path.join(cwd, 'app', 'publication-calendar.css'));
+  fs.writeFileSync(path.join(cwd, 'app', 'publication-calendar.css'), calendarCss + '\\n');
   fs.copyFileSync(calendarLogicSourcePath, path.join(cwd, 'lib', 'publication-calendar.mjs'));
 }
 

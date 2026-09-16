@@ -1,0 +1,88 @@
+.publication-calendar__inner,
+.publication-calendar__day,
+.publication-calendar__event {
+  min-width: 0;
+}
+
+.publication-calendar__event strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.publication-calendar__kind {
+  max-width: 100%;
+}
+
+@media (max-width: 1199px) {
+  .publication-calendar {
+    padding-top: 42px;
+    padding-right: max(16px, env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px));
+    padding-bottom: calc(56px + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+    padding-left: max(16px, env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));
+  }
+
+  .publication-calendar__intro {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .publication-calendar__weekday-row {
+    display: none;
+  }
+
+  .publication-calendar__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .publication-calendar__blank {
+    display: none;
+  }
+
+  .publication-calendar__mobile-weekday {
+    display: inline;
+    color: #98a2b3;
+    font-size: 12px;
+    font-weight: 800;
+  }
+}
+
+@media (max-width: 760px) {
+  .publication-calendar {
+    padding-top: 32px;
+    padding-right: max(12px, env(safe-area-inset-right), var(--tg-content-safe-area-inset-right, 0px));
+    padding-bottom: calc(44px + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+    padding-left: max(12px, env(safe-area-inset-left), var(--tg-content-safe-area-inset-left, 0px));
+  }
+
+  .publication-calendar__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .publication-calendar__next {
+    padding: 17px 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .publication-calendar__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .publication-calendar__day {
+    min-height: 82px;
+    padding: 13px 14px;
+  }
+
+  .publication-calendar__day--scheduled {
+    min-height: 118px;
+  }
+
+  .publication-calendar__legend {
+    flex-direction: column;
+    gap: 9px;
+  }
+}
