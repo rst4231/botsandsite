@@ -1,0 +1,1 @@
+export const metadata={title:'Прогресс обучения',description:'Личный прогресс обучения в команде LH'};export default function RootLayout({children}){return <html lang="ru"><body>{children}</body></html>}
