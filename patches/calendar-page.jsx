@@ -2,7 +2,7 @@ import React from 'react';
 import { getCache } from '@vercel/functions';
 import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
-import { BOT_FUNCTIONS } from './bot-functions.generated.js';
+import { BOT_FUNCTIONS, BOT_FUNCTION_GROUPS } from './bot-functions.generated.js';
 import {
   buildPublicationCalendar,
   calendarPreparedPreview,
@@ -50,12 +50,30 @@ function BotFunctions() {
           <strong>Все функции бота</strong>
           <span>Список обновляется автоматически вместе с функциями проекта.</span>
         </div>
-        <div className="bot-functions__list">
-          {BOT_FUNCTIONS.map((item) => (
-            <div className="bot-functions__item" key={item.id}>
-              <strong>{item.title}</strong>
-              <p>{item.description}</p>
-            </div>
+        <div className="bot-functions__groups">
+          {BOT_FUNCTION_GROUPS.map((group) => (
+            <section className={`bot-functions__group bot-functions__group--${group.id}`} key={group.id}>
+              <div className="bot-functions__group-header">
+                <div>
+                  <h3>{group.title}</h3>
+                  <p>{group.description}</p>
+                </div>
+                <span>{group.items.length}</span>
+              </div>
+              <div className="bot-functions__group-list">
+                {group.items.map((item) => (
+                  <div className="bot-functions__item" key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p>{item.description}</p>
+                    {item.details?.length ? (
+                      <ul className="bot-functions__details">
+                        {item.details.map((detail) => <li key={detail}>{detail}</li>)}
+                      </ul>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>

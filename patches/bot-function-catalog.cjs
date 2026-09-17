@@ -1,17 +1,61 @@
 const fs = require('fs');
 const path = require('path');
 
+const GROUPS = [
+  { id: 'content', title: 'Контент и календарь', description: 'Планирование, подготовка и контроль публикаций.' },
+  { id: 'publishing', title: 'Публикации Telegram и VK', description: 'Автоматическая и ручная публикация, подключение VK и Stories.' },
+  { id: 'sendpulse', title: 'Синхронизация SendPulse', description: 'Передача данных контактов и анкеты между ботами.' },
+  { id: 'system', title: 'Состояние системы', description: 'Диагностика и проверка готовности бота.' },
+  { id: 'other', title: 'Другие функции', description: 'Новые функции, которые ещё не отнесены к основной группе.' },
+];
+
 const KNOWN = {
-  'api/admin/send-prepared-preview': ['Предпросмотр подготовленного поста', 'Отправляет подготовленный пост для внутренней проверки перед публикацией.'],
-  'api/content/history': ['История подготовленных постов', 'Показывает историю подготовленного контента и прошлых публикаций.'],
-  'api/content/stage': ['Подготовка контента', 'Сохраняет подготовленный пост перед публикацией.'],
-  'api/content/status': ['Статус контента', 'Показывает состояние подготовленного поста на нужную дату.'],
-  'api/cron/publish': ['Автопубликация в Telegram и VK', 'Публикует подготовленный пост по расписанию в Telegram и VK.'],
-  'api/cron/special-events': ['Отраслевые события', 'Готовит и публикует специальную рубрику с отраслевыми событиями.'],
-  'api/health': ['Проверка состояния бота', 'Проверяет основные настройки и готовность публикаций.'],
-  'api/sendpulse/business-sync': ['SendPulse Business Sync', 'Синхронизирует нужные данные контактов между ботами SendPulse.'],
-  'api/vk/publish-prepared-now': ['Ручная публикация в VK', 'Позволяет отправить подготовленный пост в VK вручную.'],
-  'api/vk/setup': ['Подключение VK', 'Проверяет и подготавливает подключение VK для публикаций.'],
+  'api/admin/send-prepared-preview': {
+    group: 'content', title: 'Предпросмотр подготовленного поста',
+    description: 'Отправляет подготовленный пост для внутренней проверки перед публикацией.',
+  },
+  'api/content/history': {
+    group: 'content', title: 'История подготовленных постов',
+    description: 'Показывает историю подготовленного контента и прошлых публикаций.',
+  },
+  'api/content/stage': {
+    group: 'content', title: 'Подготовка контента',
+    description: 'Сохраняет подготовленный пост перед публикацией.',
+  },
+  'api/content/status': {
+    group: 'content', title: 'Статус контента',
+    description: 'Показывает состояние подготовленного поста на нужную дату.',
+  },
+  'api/cron/publish': {
+    group: 'publishing', title: 'Автопубликация в Telegram и VK',
+    description: 'Публикует подготовленный пост по расписанию в Telegram и VK.',
+  },
+  'api/cron/special-events': {
+    group: 'content', title: 'Отраслевые события',
+    description: 'Готовит и публикует специальную рубрику с отраслевыми событиями.',
+  },
+  'api/health': {
+    group: 'system', title: 'Проверка состояния бота',
+    description: 'Проверяет основные настройки и готовность публикаций.',
+  },
+  'api/sendpulse/business-sync': {
+    group: 'sendpulse', title: 'Ирина → Максим и Business Sync',
+    description: 'Синхронизирует профиль и рабочие данные контакта между ботами SendPulse по Telegram ID.',
+    details: [
+      'При сообщении Максиму находит соответствующий контакт Ирины по Telegram ID.',
+      'NAME и Возраст переносит из Ирины только если соответствующее поле у Максима пустое.',
+      'Данные анкеты добавляет в INFO и в заметки контакта Максима; уже добавленные блоки и заметки не дублируются.',
+      'Старая Business Sync Ирины отдельно ставит «Написал в лс = Да», переносит изменившиеся пользовательские переменные и недостающие теги.',
+    ],
+  },
+  'api/vk/publish-prepared-now': {
+    group: 'publishing', title: 'Ручная публикация в VK',
+    description: 'Позволяет отправить подготовленный пост в VK вручную.',
+  },
+  'api/vk/setup': {
+    group: 'publishing', title: 'Подключение VK',
+    description: 'Проверяет и подготавливает подключение VK для публикаций.',
+  },
 };
 
 function titleCase(value) {
@@ -38,53 +82,62 @@ function routeId(root, file) {
 }
 
 function describeRoute(id) {
-  if (KNOWN[id]) return { title: KNOWN[id][0], description: KNOWN[id][1] };
+  if (KNOWN[id]) return KNOWN[id];
   const raw = id.replace(/^api\//, '').split('/').slice(-2).join(' ');
   const title = titleCase(raw);
-  return { title, description: `Функция бота: ${title}.` };
+  return { group: 'other', title, description: `Функция бота: ${title}.` };
 }
 
 function discoverBotFunctions(root) {
   const items = [];
   if (fs.existsSync(path.join(root, 'app', 'publication-calendar-client.jsx'))) {
     items.push({
-      id: 'calendar',
-      title: 'Календарь публикаций',
+      id: 'calendar', group: 'content', title: 'Календарь публикаций',
       description: 'Показывает контент-план на 30 дней и открывает подготовленные посты.',
     });
   }
 
+  const storyPatchEnabled = fs.existsSync(path.join(root, 'patches', 'story-link-build.cjs'));
+  let storyBuildEnabled = false;
   const packagePath = path.join(root, 'package.json');
   if (fs.existsSync(packagePath)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-      const buildScript = String(pkg?.scripts?.build || '');
-      if (buildScript.includes('story-link-build.cjs')) {
-        items.push({
-          id: 'vk-stories',
-          title: 'VK Stories',
-          description: 'Публикует Stories в VK и связывает их с опубликованным постом.',
-        });
-      }
+      storyBuildEnabled = String(pkg?.scripts?.build || '').includes('story-link-build.cjs');
     } catch {}
+  }
+  if (storyPatchEnabled || storyBuildEnabled) {
+    items.push({
+      id: 'vk-stories', group: 'publishing', title: 'VK Stories',
+      description: 'Публикует Stories в VK и связывает их с опубликованным постом.',
+    });
   }
 
   const routes = walk(path.join(root, 'app', 'api'))
     .map((file) => routeId(root, file))
     .sort();
 
-  for (const id of routes) {
-    const meta = describeRoute(id);
-    items.push({ id, ...meta });
-  }
+  for (const id of routes) items.push({ id, ...describeRoute(id) });
   return items;
+}
+
+function groupBotFunctions(items) {
+  return GROUPS.map((group) => ({
+    ...group,
+    items: items.filter((item) => item.group === group.id),
+  })).filter((group) => group.items.length > 0);
 }
 
 function writeBotFunctionCatalog(root) {
   const items = discoverBotFunctions(root);
+  const groups = groupBotFunctions(items);
   const target = path.join(root, 'app', 'bot-functions.generated.js');
-  fs.writeFileSync(target, `export const BOT_FUNCTIONS = ${JSON.stringify(items, null, 2)};\n`);
+  fs.writeFileSync(target, [
+    `export const BOT_FUNCTIONS = ${JSON.stringify(items, null, 2)};`,
+    `export const BOT_FUNCTION_GROUPS = ${JSON.stringify(groups, null, 2)};`,
+    '',
+  ].join('\n'));
   return items;
 }
 
-module.exports = { discoverBotFunctions, writeBotFunctionCatalog };
+module.exports = { discoverBotFunctions, groupBotFunctions, writeBotFunctionCatalog };
