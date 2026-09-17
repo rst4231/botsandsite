@@ -2,6 +2,7 @@ import React from 'react';
 import { getCache } from '@vercel/functions';
 import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
+import { BOT_FUNCTIONS } from './bot-functions.generated.js';
 import {
   buildPublicationCalendar,
   calendarPreparedPreview,
@@ -37,6 +38,31 @@ async function addPreparedContent(items) {
   });
 }
 
+function BotFunctions() {
+  return (
+    <details className="bot-functions">
+      <summary className="bot-functions__toggle">
+        <span>Функции</span>
+        <span className="bot-functions__count">{BOT_FUNCTIONS.length}</span>
+      </summary>
+      <div className="bot-functions__panel">
+        <div className="bot-functions__header">
+          <strong>Все функции бота</strong>
+          <span>Список обновляется автоматически вместе с функциями проекта.</span>
+        </div>
+        <div className="bot-functions__list">
+          {BOT_FUNCTIONS.map((item) => (
+            <div className="bot-functions__item" key={item.id}>
+              <strong>{item.title}</strong>
+              <p>{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export default async function Page() {
   const now = new Date();
   const items = await addPreparedContent(buildPublicationCalendar(now, 30));
@@ -44,7 +70,10 @@ export default async function Page() {
   return (
     <>
       <title>Помощник</title>
-      <PublicationCalendarClient items={items} next={next} />
+      <main className="publication-calendar-page">
+        <BotFunctions />
+        <PublicationCalendarClient items={items} next={next} />
+      </main>
     </>
   );
 }
