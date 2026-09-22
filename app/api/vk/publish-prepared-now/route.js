@@ -5,7 +5,7 @@ import React from 'react';
 import { ImageResponse } from 'next/og';
 import { getCache } from '@vercel/functions';
 import { authorizedContentRequest } from '../../../../lib/content-auth.js';
-import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory, buildVkPostUrl } from '../../../../lib/vk-prepared-manual.mjs';
+import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory, buildVkPostUrl, publishVkStorySequence } from '../../../../lib/vk-prepared-manual.mjs';
 
 const CACHE_TTL = 60 * 60 * 24 * 730;
 const cache = getCache({ namespace: 'traffic-news-v4' });
@@ -32,8 +32,8 @@ async function callVk(method, params, token) {
   return data.response;
 }
 
-function storyNode(item) {
-  const slide = item.slides?.[0] || { title: item.title, body: item.description };
+function storyNode(item, slideIndex = 0) {
+  const slide = item.slides?.[slideIndex] || { title: item.title, body: item.description };
   return React.createElement(
     'div',
     { style: { width: '100%', height: '100%', display: 'flex', position: 'relative', overflow: 'hidden', background: '#ffffff', color: '#111111', fontFamily: 'Arial, sans-serif', padding: '90px' } },
@@ -56,8 +56,8 @@ function storyNode(item) {
   );
 }
 
-async function renderStoryPng(item) {
-  const response = new ImageResponse(storyNode(item), { width: 1080, height: 1920 });
+async function renderStoryPng(item, slideIndex) {
+  const response = new ImageResponse(storyNode(item, slideIndex), { width: 1080, height: 1920 });
   return Buffer.from(await response.arrayBuffer());
 }
 
@@ -70,7 +70,13 @@ export async function GET(request) {
   const token = await getVkAccessToken();
   if (!token) return Response.json({ ok: false, error: 'VK access token is not configured', dateKey }, { status: 500 });
   const statusKey = `prepared-status:${dateKey}`;
-  const currentStatus = (await cache.get(statusKey)) || {};
+  const storedStatus = (await cache.get(statusKey)) || {};
+  const currentStatus = { ...storedStatus };
+  if (new URL(request.url).searchParams.get('repost') === '1') {
+    delete currentStatus.vk;
+    delete currentStatus.vkStory;
+    delete currentStatus.vkStories;
+  }
   const apiCall = (method, params) => callVk(method, params, token);
   try {
     const nextStatus = await ensureVkPreparedPublished({
@@ -83,13 +89,28 @@ export async function GET(request) {
         try { await apiCall('wall.closeComments', { owner_id: `-${VK_GROUP_ID}`, post_id: postId }); } catch (error) { console.error('VK manual post published but comments could not be closed:', error); }
         return postId;
       },
-      publishStory: async (_item, postId) => uploadVkStory({ groupId: VK_GROUP_ID, image: await renderStoryPng(item), apiCall, linkUrl: buildVkPostUrl(VK_GROUP_ID, postId), linkText: 'more' }),
+      publishStories: async (_item, postId, existingStories, onProgress) => {
+        const linkUrl = buildVkPostUrl(VK_GROUP_ID, postId);
+        return publishVkStorySequence({
+          slides: item.slides,
+          existingStories,
+          renderStory: async (_slide, slideIndex) => renderStoryPng(item, slideIndex),
+          publishStory: async (image, slideIndex) => {
+            const story = await uploadVkStory({ groupId: VK_GROUP_ID, image, apiCall, linkUrl, linkText: 'more' });
+            if (story.lifetimeSeconds !== null && !story.lifetimeVerified) {
+              console.warn('VK_STORY_LIFETIME_NOT_48H', { slideIndex: slideIndex + 1, lifetimeSeconds: story.lifetimeSeconds });
+            }
+            return story;
+          },
+          persist: onProgress,
+        });
+      },
       persist: async (status) => cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] }),
     });
-    return Response.json({ ok: true, dateKey, title: item.title, vkPostId: nextStatus.vk, vkStory: nextStatus.vkStory, telegramPublished: Boolean(nextStatus.telegram) });
+    return Response.json({ ok: true, dateKey, title: item.title, vkPostId: nextStatus.vk, vkStory: nextStatus.vkStory, vkStories: nextStatus.vkStories || [], telegramPublished: Boolean(nextStatus.telegram) });
   } catch (error) {
     console.error('VK_PREPARED_NOW_ERROR', error);
     const persistedStatus = (await cache.get(statusKey)) || currentStatus;
-    return Response.json({ ok: false, dateKey, error: error instanceof Error ? error.message : 'VK prepared publication failed', vkPostId: persistedStatus.vk || null, vkStory: persistedStatus.vkStory || null }, { status: 500 });
+    return Response.json({ ok: false, dateKey, error: error instanceof Error ? error.message : 'VK prepared publication failed', vkPostId: persistedStatus.vk || null, vkStory: persistedStatus.vkStory || null, vkStories: persistedStatus.vkStories || [] }, { status: 500 });
   }
 }

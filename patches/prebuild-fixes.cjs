@@ -40,6 +40,7 @@ if (fs.existsSync(manualRoutePath)) {
     "  if (new URL(request.url).searchParams.get('repost') === '1') {",
     "    delete currentStatus.vk;",
     "    delete currentStatus.vkStory;",
+    "    delete currentStatus.vkStories;",
     "  }",
     "  const apiCall = (method, params) => callVk(method, params, token);",
   ].join('\n');

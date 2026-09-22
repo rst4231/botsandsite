@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory, buildVkPostUrl } from '../lib/vk-prepared-manual.mjs';
+import { buildVkPreparedText, ensureVkPreparedPublished, uploadVkStory, buildVkPostUrl, publishVkStorySequence } from '../lib/vk-prepared-manual.mjs';
 
 const item = {
   kind: 'practical',
@@ -55,6 +55,24 @@ test('persists wall success before attempting story and passes the wall id into 
   assert.equal(storyCalls, 1);
 });
 
+test('publishes every VK story slide in order and resumes from saved progress', async () => {
+  const published = [];
+  const persisted = [];
+  const result = await publishVkStorySequence({
+    slides: ['one', 'two', 'three'],
+    existingStories: [{ storyId: 10, slideIndex: 0 }],
+    renderStory: async (slide, index) => Buffer.from(`${index}:${slide}`),
+    publishStory: async (_image, index) => {
+      published.push(index);
+      return { ownerId: -160851478, storyId: 20 + index, lifetimeSeconds: 172800, lifetimeVerified: true };
+    },
+    persist: async (stories) => persisted.push(structuredClone(stories)),
+  });
+  assert.deepEqual(published, [1, 2]);
+  assert.deepEqual(result.map((story) => story.storyId), [10, 21, 22]);
+  assert.deepEqual(persisted.map((stories) => stories.length), [2, 3]);
+});
+
 test('builds the internal VK post URL used by stories', () => {
   assert.equal(buildVkPostUrl('160851478', 321), 'https://vk.com/wall-160851478_321');
   assert.equal(buildVkPostUrl('-160851478', 321), 'https://vk.com/wall-160851478_321');
@@ -67,6 +85,7 @@ test('uploads story photo field with a link to the published post and saves uplo
     apiCalls.push({ method, params });
     if (method === 'stories.getPhotoUploadServer') return { upload_url: 'https://upload.example/story' };
     if (method === 'stories.save') return { count: 1, items: [{ owner_id: -160851478, id: 55 }] };
+    if (method === 'stories.getById') return { items: [{ owner_id: -160851478, id: 55, date: 1000, expires_at: 173800 }] };
     throw new Error('unexpected method');
   };
   const fetchImpl = async (url, options) => {
@@ -80,7 +99,7 @@ test('uploads story photo field with a link to the published post and saves uplo
   assert.equal(fetchCalls[0].url, 'https://upload.example/story');
   assert.equal(apiCalls[1].method, 'stories.save');
   assert.deepEqual(apiCalls[1].params, { upload_results: 'abc123' });
-  assert.deepEqual(result, { ownerId: -160851478, storyId: 55 });
+  assert.deepEqual(result, { ownerId: -160851478, storyId: 55, expiresAt: 173800, lifetimeSeconds: 172800, lifetimeVerified: true });
 });
 
 test('keeps story upload compatible when no link is requested', async () => {

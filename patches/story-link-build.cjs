@@ -7,7 +7,7 @@ if (!fs.existsSync(buildPath)) throw new Error('build.cjs is missing');
 let source = fs.readFileSync(buildPath, 'utf8');
 
 const oldImport = "import { buildVkPreparedText } from './vk-prepared-manual.mjs';";
-const newImport = "import { buildVkPreparedText, uploadVkStory, buildVkPostUrl } from './vk-prepared-manual.mjs';";
+const newImport = "import { buildVkPreparedText, uploadVkStory, buildVkPostUrl, publishVkStorySequence, summarizeVkStories } from './vk-prepared-manual.mjs';";
 if (!source.includes(oldImport) && !source.includes(newImport)) {
   throw new Error('Could not locate shared VK prepared import');
 }
@@ -19,7 +19,7 @@ if (!source.includes(marker)) throw new Error('Could not locate VK publisher bui
 const patch = String.raw`
 const scheduledStoryHelpers = fs.readFileSync(path.join(cwd, 'patches', 'vk-story-scheduled-helper.txt'), 'utf8');
 const vkStoryMarker = 'async function uploadVkImages(images, token) {';
-if (!preparedContent.includes('async function sendVkStory(item, postId)')) {
+if (!preparedContent.includes('async function sendVkStories(item, postId')) {
   if (!preparedContent.includes(vkStoryMarker)) throw new Error('Could not locate scheduled VK story insertion point');
   preparedContent = preparedContent.replace(vkStoryMarker, scheduledStoryHelpers + '\n\n' + vkStoryMarker);
 }
@@ -40,7 +40,11 @@ const scheduledVkBlock = [
 const scheduledStoryBlock = [
   "  if (item.format === 'slides' && status.vk && !status.vkStory) {",
   "    try {",
-  "      status.vkStory = await sendVkStory(item, status.vk);",
+  "      status.vkStories = await sendVkStories(item, status.vk, status.vkStories, async (stories) => {",
+  "        status.vkStories = stories;",
+  "        await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });",
+  "      });",
+  "      status.vkStory = summarizeVkStories(status.vkStories);",
   "      await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });",
   "    } catch (error) {",
   "      errors.vkStory = error instanceof Error ? error.message : 'VK story publishing failed';",
@@ -55,12 +59,12 @@ preparedContent = preparedContent.replace(
 );
 preparedContent = preparedContent.replaceAll(
   '    vkPostId: status.vk || null,',
-  "    vkPostId: status.vk || null,\n    vkStory: status.vkStory || null,",
+  "    vkPostId: status.vk || null,\n    vkStory: status.vkStory || null,\n    vkStories: status.vkStories || null,",
 );
 
 `;
 
-if (!source.includes("status.vkStory = await sendVkStory(item, status.vk)")) {
+if (!source.includes("status.vkStories = await sendVkStories(item, status.vk")) {
   source = source.replace(marker, patch + marker);
 }
 fs.writeFileSync(buildPath, source);

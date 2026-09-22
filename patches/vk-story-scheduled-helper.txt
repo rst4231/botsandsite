@@ -1,5 +1,5 @@
-function vkStoryNode(item) {
-  const slide = item.slides?.[0] || { title: item.title, body: item.description };
+function vkStoryNode(item, slideIndex = 0) {
+  const slide = item.slides?.[slideIndex] || { title: item.title, body: item.description };
   const label = item.kind === 'team' ? 'КОМАНДА' : item.kind === 'beginner' ? 'НОВИЧКАМ' : 'ПРАКТИКА';
   return React.createElement(
     'div',
@@ -27,20 +27,33 @@ function vkStoryNode(item) {
   );
 }
 
-async function renderVkStoryPng(item) {
-  const response = new ImageResponse(vkStoryNode(item), { width: 1080, height: 1920 });
+async function renderVkStoryPng(item, slideIndex) {
+  const response = new ImageResponse(vkStoryNode(item, slideIndex), { width: 1080, height: 1920 });
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function sendVkStory(item, postId) {
+async function sendVkStories(item, postId, existingStories = [], onProgress = async () => {}) {
   const token = await getVkAccessToken();
   if (!token) throw new Error('VK access token is not configured');
   const apiCall = (method, params) => callVk(method, params, token);
-  return uploadVkStory({
-    groupId: VK_GROUP_ID,
-    image: await renderVkStoryPng(item),
-    apiCall,
-    linkUrl: buildVkPostUrl(VK_GROUP_ID, postId),
-    linkText: 'more',
+  const linkUrl = buildVkPostUrl(VK_GROUP_ID, postId);
+  return publishVkStorySequence({
+    slides: item.slides || [],
+    existingStories,
+    renderStory: async (_slide, slideIndex) => renderVkStoryPng(item, slideIndex),
+    publishStory: async (image, slideIndex) => {
+      const story = await uploadVkStory({
+        groupId: VK_GROUP_ID,
+        image,
+        apiCall,
+        linkUrl,
+        linkText: 'more',
+      });
+      if (story.lifetimeSeconds !== null && !story.lifetimeVerified) {
+        console.warn('VK_STORY_LIFETIME_NOT_48H', { slideIndex: slideIndex + 1, lifetimeSeconds: story.lifetimeSeconds });
+      }
+      return story;
+    },
+    persist: onProgress,
   });
 }
