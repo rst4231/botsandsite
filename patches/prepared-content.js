@@ -10,6 +10,7 @@ const VK_API_VERSION = '5.199';
 const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
 const PUBLIC_CHANNEL_FEED_URL = 'https://t.me/s/teamcpalh';
+const DURABLE_HISTORY_URL = 'https://api.github.com/repos/rst4231/botsandsite/issues/9';
 
 const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/c/1394610823/767">О нас</a> | <a href="https://t.me/c/1394610823/779">Кейсы</a> | <a href="https://app.lava.top/products/1a995492-be5d-4957-8dfb-29bb21d7f387">Руководство</a>';
 const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
@@ -175,15 +176,47 @@ async function recentTelegramHistory(limit = 30) {
   }
 }
 
+async function durablePreparedHistory(limit = 20) {
+  try {
+    const response = await fetch(DURABLE_HISTORY_URL, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'user-agent': 'traffic-news-telegram-bot/content-history',
+      },
+      cache: 'no-store',
+    });
+    if (!response.ok) return [];
+    const issue = await response.json();
+    const match = String(issue?.body || '').match(/```json\s*([\s\S]*?)```/i);
+    if (!match) return [];
+    const payload = JSON.parse(match[1]);
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    return items.filter((item) => item && typeof item === 'object').slice(0, Math.max(1, Math.min(limit, 20)));
+  } catch (error) {
+    console.error('DURABLE_CONTENT_HISTORY_ERROR', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
 export async function getPreparedHistory(limit = 60) {
   const max = Math.max(1, Math.min(Number(limit) || 60, 100));
-  const [history, legacyCache, telegram] = await Promise.all([
+  const [history, durableHistory, legacyCache, telegram] = await Promise.all([
     preparedHistory(),
+    durablePreparedHistory(Math.min(max, 20)),
     cache.get('post-history'),
     recentTelegramHistory(Math.min(max, 40)),
   ]);
+  const generatedHistory = [];
+  const seen = new Set();
+  for (const entry of [...history, ...durableHistory]) {
+    const key = String(entry?.fingerprint || entry?.dateKey || entry?.title || '');
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    generatedHistory.push(entry);
+    if (generatedHistory.length >= max) break;
+  }
   return {
-    generatedHistory: history.slice(0, max),
+    generatedHistory,
     legacyPublicationIndex: Array.isArray(legacyCache) ? legacyCache.slice(0, max) : [],
     recentTelegram: telegram,
   };

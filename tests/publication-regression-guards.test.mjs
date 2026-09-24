@@ -32,3 +32,10 @@ test('manual publication uses the same publisher as cron and is restored by buil
   assert.match(build, /prepared-publish-now-route\.js/);
   assert.match(build, /app\/api\/content\/publish-now\/route\.js/);
 });
+
+test('content history falls back to durable GitHub history when cache/feed are empty', () => {
+  assert.match(prepared, /DURABLE_HISTORY_URL/);
+  assert.match(prepared, /issues\/9/);
+  assert.match(prepared, /durablePreparedHistory/);
+  assert.match(prepared, /\.\.\.history, \.\.\.durableHistory/);
+});
