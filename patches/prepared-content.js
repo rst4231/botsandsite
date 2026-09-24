@@ -150,6 +150,27 @@ async function preparedHistory() {
   return Array.isArray(value) ? value : [];
 }
 
+export function parseTelegramPublicFeed(page, limit = 30) {
+  const html = String(page || '');
+  const starts = [...html.matchAll(/<div[^>]+class=["'][^"']*tgme_widget_message[^"']*["'][^>]+data-post=["']([^"']+)["'][^>]*>/gi)];
+  return starts.map((match, index) => {
+    const blockStart = match.index || 0;
+    const blockEnd = index + 1 < starts.length ? starts[index + 1].index : html.length;
+    const block = html.slice(blockStart, blockEnd);
+    const dateMatch = block.match(/<time[^>]+datetime=["']([^"']+)["']/i);
+    const textMatch = block.match(/<div[^>]+class=["'][^"']*tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    const photoCount = (block.match(/class=["'][^"']*tgme_widget_message_photo_wrap[^"']*["']/gi) || []).length;
+    const groupedMedia = /class=["'][^"']*tgme_widget_message_grouped_wrap[^"']*["']/i.test(block);
+    return {
+      postRef: match[1],
+      datetime: dateMatch?.[1] || null,
+      text: textMatch ? htmlToText(textMatch[1]) : '',
+      photoCount,
+      groupedMedia,
+    };
+  }).filter((entry) => entry.text).slice(-Math.max(1, Math.min(limit, 50))).reverse();
+}
+
 async function recentTelegramHistory(limit = 30) {
   try {
     const response = await fetch(PUBLIC_CHANNEL_FEED_URL, {
@@ -157,20 +178,7 @@ async function recentTelegramHistory(limit = 30) {
       cache: 'no-store',
     });
     if (!response.ok) return [];
-    const page = await response.text();
-    const starts = [...page.matchAll(/<div[^>]+class=["'][^"']*tgme_widget_message[^"']*["'][^>]+data-post=["']([^"']+)["'][^>]*>/gi)];
-    return starts.map((match, index) => {
-      const start = match.index || 0;
-      const end = index + 1 < starts.length ? starts[index + 1].index : page.length;
-      const block = page.slice(start, end);
-      const dateMatch = block.match(/<time[^>]+datetime=["']([^"']+)["']/i);
-      const textMatch = block.match(/<div[^>]+class=["'][^"']*tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-      return {
-        postRef: match[1],
-        datetime: dateMatch?.[1] || null,
-        text: textMatch ? htmlToText(textMatch[1]) : '',
-      };
-    }).filter((entry) => entry.text).slice(-Math.max(1, Math.min(limit, 50))).reverse();
+    return parseTelegramPublicFeed(await response.text(), limit);
   } catch {
     return [];
   }
@@ -579,7 +587,8 @@ export async function publishPreparedForToday(now = new Date()) {
   const item = await cache.get(`prepared-content:${schedule.dateKey}`);
   if (!item) {
     return {
-      ok: true,
+      ok: false,
+      error: 'Prepared content is missing for a scheduled publication',
       skipped: 'No prepared content from the 09:00 ChatGPT generation',
       dateKey: schedule.dateKey,
       kind: schedule.kind,

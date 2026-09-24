@@ -7,9 +7,9 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@vercel/functions": "^3.9.3",
+    "@vercel/functions": "3.9.3",
     "@vkid/sdk": "2.6.7",
-    "next": "16.1.1",
+    "next": "16.3.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   }

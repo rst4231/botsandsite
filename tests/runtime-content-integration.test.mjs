@@ -9,6 +9,8 @@ test('prepared publisher still injects durable GitHub issue fallback', () => {
   assert.match(runtime, /loadRuntimeContentIssue/);
   assert.match(runtime, /durablePreparedFallback/);
   assert.match(runtime, /durableFallback\?\.status/);
+  assert.match(runtime, /cachedItem/);
+  assert.match(runtime, /prepared-content/);
 });
 
 test('cron route uses only CRON_SECRET and fails closed when missing', () => {

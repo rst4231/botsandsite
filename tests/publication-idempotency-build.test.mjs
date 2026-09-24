@@ -54,12 +54,15 @@ async function publishPreparedForToday() {
 }`;
 }
 
-test('transform adds durable-first VK, recovery, guid and Telegram claim', () => {
+test('transform adds durable-first VK, safe Telegram recovery, guid and Telegram claim', () => {
   const source = transformPreparedContent(fixture());
   assert.match(source, /loadDurableVkToken[\s\S]*cachedToken[\s\S]*VK_ACCESS_TOKEN/);
   assert.match(source, /validateVkToken/);
   assert.match(source, /recoverTelegramPublication/);
-  assert.match(source, /recoverVkPost/);
+  assert.doesNotMatch(source, /recoverVkPost/);
+  assert.doesNotMatch(source, /wall\\.get/);
+  assert.match(source, /entry\\.photoCount === 5/);
+  assert.match(source, /entry\\.groupedMedia === true/);
   assert.match(source, /guid: deterministicVkGuid\(item\)/);
   assert.match(source, /claimPublication\(status, 'telegram'\)/);
   assert.match(source, /public Telegram history/);

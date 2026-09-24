@@ -9,24 +9,14 @@ function replaceRegex(source, pattern, replacement, label) {
 }
 
 function helperSource() {
-  return `async function recoverVkPost(item) {
-  const token = await getVkAccessToken();
-  if (!token) return null;
-  try {
-    const wall = await callVk('wall.get', { owner_id: \`-\${VK_GROUP_ID}\`, count: 30 }, token);
-    const expectedTitle = normalize(item.title);
-    const post = (wall?.items || []).find((entry) => normalize(entry?.text || '').includes(expectedTitle));
-    return post?.id || null;
-  } catch (error) {
-    console.error('VK_PUBLICATION_RECOVERY_ERROR', error instanceof Error ? error.message : String(error));
-    return null;
-  }
-}
-
-async function recoverTelegramPublication(item) {
+  return `async function recoverTelegramPublication(item) {
   const entries = await recentTelegramHistory(30);
   const expectedTitle = normalize(item.title);
-  const match = entries.find((entry) => normalize(entry.text || '').includes(expectedTitle));
+  const match = entries.find((entry) => {
+    if (!normalize(entry.text || '').includes(expectedTitle)) return false;
+    if (item.format === 'slides') return entry.photoCount === 5 && entry.groupedMedia === true;
+    return entry.photoCount === 0;
+  });
   if (!match) return null;
   const messageId = Number(String(match.postRef || '').split('/').pop());
   return Number.isInteger(messageId) && messageId > 0 ? [messageId] : [String(match.postRef)];
@@ -38,7 +28,7 @@ function transformPreparedContent(input) {
   let source = String(input || '');
 
   const durableImport = "import { loadDurableVkToken, validateVkToken } from './vk-token-durable.mjs';";
-  const stateImport = "import { claimPublication, releasePublicationClaim, deterministicVkGuid } from './publication-state.mjs';";
+  const stateImport = "import { acquirePublicationLease, claimPublication, releasePublicationClaim, deterministicVkGuid } from './publication-state.mjs';";
   if (!source.includes(stateImport)) {
     if (source.includes(durableImport)) source = source.replace(durableImport, `${durableImport}\n${stateImport}`);
     else source = requiredReplace(source, "import { getTelegramConfig } from './server-config.js';", "import { getTelegramConfig } from './server-config.js';\n" + stateImport, 'import');
@@ -72,7 +62,7 @@ export async function getPreparedVkConfigurationStatus() {
   }
 }`, 'VK loader');
 
-  if (!source.includes('async function recoverVkPost(item)')) {
+  if (!source.includes('async function recoverTelegramPublication(item)')) {
     source = requiredReplace(source, 'async function sendVk(item) {', `${helperSource()}\nasync function sendVk(item) {`, 'VK publisher');
   }
   source = requiredReplace(source, '    message: vkText(item),\n  }, token);', '    message: vkText(item),\n    guid: deterministicVkGuid(item),\n  }, token);', 'VK guid');
@@ -97,13 +87,6 @@ export async function getPreparedVkConfigurationStatus() {
     const recoveredTelegram = await recoverTelegramPublication(item);
     if (recoveredTelegram) {
       status.telegram = recoveredTelegram;
-      await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });
-    }
-  }
-  if (!status.vk) {
-    const recoveredVk = await recoverVkPost(item);
-    if (recoveredVk) {
-      status.vk = recoveredVk;
       await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });
     }
   }

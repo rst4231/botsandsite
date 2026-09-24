@@ -39,3 +39,18 @@ test('content history falls back to durable GitHub history when cache/feed are e
   assert.match(prepared, /durablePreparedHistory/);
   assert.match(prepared, /\.\.\.history, \.\.\.durableHistory/);
 });
+
+
+test('scheduled publication fails closed when prepared content is missing', () => {
+  assert.match(prepared, /Prepared content is missing for a scheduled publication/);
+});
+
+test('Telegram history records media shape for safe recovery', () => {
+  assert.match(prepared, /photoCount/);
+  assert.match(prepared, /groupedMedia/);
+});
+
+test('manual publication is blocked during the cron collision window', () => {
+  assert.match(manual, /manualPublicationBlockedByCronWindow/);
+  assert.match(manual, /status: 409/);
+});
