@@ -22,8 +22,8 @@ if (fs.existsSync(preparedPath)) {
   let source = fs.readFileSync(preparedPath, 'utf8');
   source = source
     .replace(
-      'No prepared content from the 09:00 ChatGPT generation',
       'No prepared content from the 01:00 ChatGPT generation',
+      'No prepared content from the 09:00 ChatGPT generation',
     )
     .replaceAll(oldTheoryUrl, newTheoryUrl);
   fs.writeFileSync(preparedPath, source);
@@ -53,8 +53,8 @@ if (fs.existsSync(buildPath)) {
   let source = fs.readFileSync(buildPath, 'utf8');
   source = source
     .replace(
-      "generation: 'ChatGPT — 09:00 МСК в день публикации'",
       "generation: 'ChatGPT — 01:00 МСК в день публикации'",
+      "generation: 'ChatGPT — 09:00 МСК в день публикации'",
     )
     .replaceAll(oldTheoryUrl, newTheoryUrl);
 

@@ -43,6 +43,7 @@ copyPatch('prepared-stage-route.js', 'app/api/content/stage/route.js');
 copyPatch('prepared-history-route.js', 'app/api/content/history/route.js');
 copyPatch('prepared-status-route.js', 'app/api/content/status/route.js');
 copyPatch('prepared-publish-route.js', 'app/api/cron/publish/route.js');
+copyPatch('prepared-publish-now-route.js', 'app/api/content/publish-now/route.js');
 copyPatch('sendpulse-business-sync/client.mjs', 'lib/sendpulse-business-sync/client.mjs');
 copyPatch('sendpulse-business-sync/sync.mjs', 'lib/sendpulse-business-sync/sync.mjs');
 copyPatch('sendpulse-business-sync-route.js', 'app/api/sendpulse/business-sync/route.js');

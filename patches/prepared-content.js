@@ -11,7 +11,7 @@ const VK_GROUP_ID = process.env.VK_GROUP_ID || '160851478';
 const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
 const PUBLIC_CHANNEL_FEED_URL = 'https://t.me/s/teamcpalh';
 
-const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/c/1394610823/767">О нас</a> | <a href="https://t.me/c/1394610823/779">Кейсы</a> | <a href="https://app.lava.top/products/1a995492-be5d-4957-8dfb-29bb21d7f387">Руководство</a> | <a href="https://t.me/+B7YJykmJSkEzMmJi">Канал</a>';
+const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/c/1394610823/767">О нас</a> | <a href="https://t.me/c/1394610823/779">Кейсы</a> | <a href="https://app.lava.top/products/1a995492-be5d-4957-8dfb-29bb21d7f387">Руководство</a>';
 const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
 const HISTORY_KEY = 'prepared-content-history-v1';
 const FORBIDDEN_BRANDS = /(?:\bMeta\b|\bFacebook\b|\bInstagram\b|\bМета\b|Фейсбук|Инстаграм)/i;
@@ -385,6 +385,20 @@ async function renderSlidePng(slide, index, total) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+function assertTelegramSlideMedia(item, images) {
+  if (item?.format !== 'slides' || !Array.isArray(item.slides) || item.slides.length !== 5) {
+    throw new Error('Telegram slide publication requires exactly five prepared slides');
+  }
+  if (!Array.isArray(images) || images.length !== 5) {
+    throw new Error('Telegram slide publication requires exactly five rendered images');
+  }
+  images.forEach((image, index) => {
+    if (!image || typeof image.byteLength !== 'number' || image.byteLength <= 0) {
+      throw new Error(`Telegram slide ${index + 1} was not rendered`);
+    }
+  });
+}
+
 async function sendTelegramText(text) {
   const { token, chatId } = getTelegramConfig();
   if (!token || !chatId) throw new Error('Telegram production settings are missing');
@@ -404,6 +418,7 @@ async function sendTelegramText(text) {
 }
 
 async function sendTelegramSlides(item, images) {
+  assertTelegramSlideMedia(item, images);
   const { token, chatId } = getTelegramConfig();
   if (!token || !chatId) throw new Error('Telegram production settings are missing');
   const caption = telegramText(item);
@@ -428,7 +443,11 @@ async function sendTelegramSlides(item, images) {
   });
   const data = await response.json();
   if (!data.ok) throw new Error(data.description || 'Telegram media publishing failed');
-  return (data.result || []).map((entry) => entry.message_id);
+  const messageIds = (data.result || []).map((entry) => entry.message_id).filter(Boolean);
+  if (messageIds.length !== 5) {
+    throw new Error(`Telegram media group returned ${messageIds.length} messages instead of 5`);
+  }
+  return messageIds;
 }
 
 async function getVkAccessToken() {
@@ -534,6 +553,9 @@ export async function publishPreparedForToday(now = new Date()) {
     };
   }
   if (item.kind !== schedule.kind) throw new Error('Prepared content kind does not match today schedule');
+  if (item.format === 'slides' && (!Array.isArray(item.slides) || item.slides.length !== 5)) {
+    throw new Error('Prepared slide publication requires exactly five slides');
+  }
 
   const statusKey = `prepared-status:${schedule.dateKey}`;
   const status = (await cache.get(statusKey)) || {};
