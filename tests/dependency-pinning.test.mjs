@@ -23,12 +23,15 @@ test('critical production dependencies are pinned exactly in manifest and lockfi
 });
 
 
-test('build rewrites archived dependency ranges after fresh source extraction', () => {
+test('build preserves canonical dependency files across fresh source extraction', () => {
   const build = fs.readFileSync(new URL('../build.cjs', import.meta.url), 'utf8');
-  assert.match(build, /execFileSync\('tar'/);
-  assert.match(build, /'@vercel\/functions': '3\.9\.3'/);
-  assert.match(build, /'@vkid\/sdk': '2\.6\.7'/);
-  assert.match(build, /next: '16\.3\.6'/);
-  assert.match(build, /react: '19\.2\.3'/);
-  assert.match(build, /'react-dom': '19\.2\.3'/);
+  const saveManifest = build.indexOf('const canonicalPackageJson');
+  const saveLock = build.indexOf('const canonicalPackageLock');
+  const extract = build.indexOf("execFileSync('tar'");
+  const restoreManifest = build.indexOf('if (canonicalPackageJson) fs.writeFileSync');
+  const restoreLock = build.indexOf('if (canonicalPackageLock) fs.writeFileSync');
+  assert.ok(saveManifest >= 0 && saveManifest < extract);
+  assert.ok(saveLock >= 0 && saveLock < extract);
+  assert.ok(restoreManifest > extract);
+  assert.ok(restoreLock > extract);
 });
