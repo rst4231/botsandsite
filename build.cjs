@@ -11,6 +11,20 @@ const archivePath = path.join(os.tmpdir(), 'traffic-news-source.tgz');
 fs.writeFileSync(archivePath, archive);
 execFileSync('tar', ['-xzf', archivePath, '-C', cwd], { stdio: 'inherit' });
 
+const packageJsonPath = path.join(cwd, 'package.json');
+if (fs.existsSync(packageJsonPath)) {
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  packageJson.dependencies = {
+    ...(packageJson.dependencies || {}),
+    '@vercel/functions': '3.9.3',
+    '@vkid/sdk': '2.6.7',
+    next: '16.3.6',
+    react: '19.2.3',
+    'react-dom': '19.2.3',
+  };
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+}
+
 function copyPatch(source, target) {
   const from = path.join(cwd, 'patches', source);
   const to = path.join(cwd, target);
