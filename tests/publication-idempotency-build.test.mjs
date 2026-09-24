@@ -60,9 +60,9 @@ test('transform adds durable-first VK, safe Telegram recovery, guid and Telegram
   assert.match(source, /validateVkToken/);
   assert.match(source, /recoverTelegramPublication/);
   assert.doesNotMatch(source, /recoverVkPost/);
-  assert.doesNotMatch(source, /wall\\.get/);
-  assert.match(source, /entry\\.photoCount === 5/);
-  assert.match(source, /entry\\.groupedMedia === true/);
+  assert.doesNotMatch(source, /wall\.get/);
+  assert.match(source, /entry\.photoCount === 5/);
+  assert.match(source, /entry\.groupedMedia === true/);
   assert.match(source, /guid: deterministicVkGuid\(item\)/);
   assert.match(source, /claimPublication\(status, 'telegram'\)/);
   assert.match(source, /public Telegram history/);
