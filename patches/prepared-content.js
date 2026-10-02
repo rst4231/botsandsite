@@ -412,7 +412,7 @@ function slideNode(slide, index, total) {
         React.createElement('div', {
           style: { width: '18px', height: '18px', borderRadius: '999px', background: '#ff7a00' },
         }),
-        React.createElement('div', { style: { marginLeft: '8px' } }, 'LH'),
+
       ),
     ),
   );
