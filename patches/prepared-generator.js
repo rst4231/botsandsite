@@ -128,7 +128,6 @@ async function generateStructured(dateKey, kind, history) {
     body: JSON.stringify({
       model: MODEL,
       stream: false,
-      temperature: 0.6,
       messages: [
         { role: 'system', content: 'Return only the requested JSON object. Follow the schema exactly.' },
         { role: 'user', content: baseInstructions(dateKey, kind, history) },
