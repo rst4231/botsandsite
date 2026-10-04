@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const generator = fs.readFileSync(new URL('../patches/prepared-generator.js', import.meta.url), 'utf8');
 const route = fs.readFileSync(new URL('../patches/prepared-generate-route.js', import.meta.url), 'utf8');
 const build = fs.readFileSync(new URL('../patches/morning-generation-build.cjs', import.meta.url), 'utf8');
+const productionBuild = fs.readFileSync(new URL('../build.cjs', import.meta.url), 'utf8');
 
 test('morning generator uses Vercel AI Gateway and existing prepared-content validation', () => {
   assert.match(generator, /ai-gateway\.vercel\.sh\/v1/);
@@ -29,6 +30,9 @@ test('prepare cron fails closed behind CRON_SECRET', () => {
 });
 
 test('build wires morning and recovery routes without replacing publisher', () => {
+  assert.match(productionBuild, /app\/api\/cron\/prepare\/route\.js/);
+  assert.match(productionBuild, /app\/api\/cron\/prepare-recovery\/route\.js/);
+  assert.match(productionBuild, /lib\/prepared-generator\.js/);
   assert.match(build, /app\/api\/cron\/prepare\/route\.js/);
   assert.match(build, /app\/api\/cron\/prepare-recovery\/route\.js/);
   assert.match(build, /app\/api\/cron\/publish/);
