@@ -1,6 +1,6 @@
 import React from 'react';
 import { getCache } from '@vercel/functions';
-import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';
+import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';\nimport { listQueuePosts } from '../lib/content-queue-client.mjs';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
 import { BOT_FUNCTIONS, BOT_FUNCTION_GROUPS } from './bot-functions.generated.js';
 import {
@@ -16,11 +16,25 @@ const cache = getCache({ namespace: 'traffic-news-v4' });
 
 async function addPreparedContent(items) {
   const scheduled = items.filter((item) => item.scheduled);
+  let queueByDate = new Map();
+  if (scheduled.length) {
+    try {
+      const queueItems = await listQueuePosts({
+        from: scheduled[0].dateKey,
+        to: scheduled[scheduled.length - 1].dateKey,
+      });
+      queueByDate = new Map(queueItems.map((item) => [item.dateKey, item]));
+    } catch (error) {
+      console.error('PUBLICATION_CALENDAR_QUEUE_READ_ERROR', error instanceof Error ? error.message : String(error));
+    }
+  }
+
   const pairs = await Promise.all(scheduled.map(async (item) => {
     try {
       const cachedPrepared = await cache.get(`prepared-content:${item.dateKey}`);
-      const durableFallback = cachedPrepared ? null : await loadRuntimeContentIssue(item.dateKey);
-      const prepared = cachedPrepared || durableFallback?.item || null;
+      const queuedPrepared = queueByDate.get(item.dateKey) || null;
+      const durableFallback = cachedPrepared || queuedPrepared ? null : await loadRuntimeContentIssue(item.dateKey);
+      const prepared = cachedPrepared || queuedPrepared || durableFallback?.item || null;
       return [item.dateKey, calendarPreparedPreview(prepared)];
     } catch (error) {
       console.error('PUBLICATION_CALENDAR_PREPARED_READ_ERROR', item.dateKey, error);

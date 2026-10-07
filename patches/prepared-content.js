@@ -2,7 +2,7 @@ import React from 'react';
 import { ImageResponse } from 'next/og';
 import { createHash } from 'node:crypto';
 import { getCache } from '@vercel/functions';
-import { getTelegramConfig } from './server-config.js';
+import { getTelegramConfig } from './server-config.js';\nimport { deleteQueuePost } from './content-queue-client.mjs';
 
 const CACHE_TTL = 60 * 60 * 24 * 730;
 const cache = getCache({ namespace: 'traffic-news-v4' });
@@ -579,6 +579,25 @@ async function savePublishedHistory(item, status) {
   });
 }
 
+async function removePublishedQueueItem(item, status) {
+  const complete = Boolean(
+    status?.telegram
+    && status?.vk
+    && (item?.format !== 'slides' || status?.vkStory)
+  );
+  if (!complete) return false;
+  try {
+    await deleteQueuePost(item.dateKey);
+    return true;
+  } catch (error) {
+    console.error('CONTENT_QUEUE_DELETE_AFTER_PUBLISH_ERROR', {
+      dateKey: item?.dateKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
 export async function publishPreparedForToday(now = new Date()) {
   const schedule = kindForDate(now);
   if (!schedule.kind) return { ok: true, skipped: 'No publication scheduled for today' };
@@ -602,7 +621,8 @@ export async function publishPreparedForToday(now = new Date()) {
   const statusKey = `prepared-status:${schedule.dateKey}`;
   const status = (await cache.get(statusKey)) || {};
   if (status.telegram && status.vk) {
-    return { ok: true, skipped: 'Prepared content was already published', ...status };
+    const queueDeleted = await removePublishedQueueItem(item, status);
+    return { ok: true, skipped: 'Prepared content was already published', queueDeleted, ...status };
   }
 
   let images = [];
@@ -638,6 +658,8 @@ export async function publishPreparedForToday(now = new Date()) {
     await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });
   }
 
+  const queueDeleted = await removePublishedQueueItem(item, status);
+
   return {
     ok: Object.keys(errors).length === 0,
     dateKey: schedule.dateKey,
@@ -646,5 +668,6 @@ export async function publishPreparedForToday(now = new Date()) {
     telegramMessageIds: status.telegram || null,
     vkPostId: status.vk || null,
     errors,
+    queueDeleted,
   };
 }

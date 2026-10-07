@@ -1,4 +1,4 @@
-import { getPreparedHistory, getPreparedStatus, kindForDate, stagePreparedContent } from './prepared-content.js';
+import { datePartsInMoscow, getPreparedHistory, getPreparedStatus, kindForDate, stagePreparedContent } from './prepared-content.js';\nimport { getQueuePost, listQueuePosts, putQueuePost, queueConfigured } from './content-queue-client.mjs';
 
 const AI_GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1';
 const MODEL = process.env.CONTENT_GENERATION_MODEL || 'openai/gpt-5.6-sol';
@@ -30,6 +30,19 @@ function historyForPrompt(history = {}) {
       text: compact(entry?.text, 360),
     })),
   };
+}
+
+function dateFromDateKey(dateKey) {
+  const match = String(dateKey || '').match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  if (!match) throw new Error('Invalid dateKey');
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0));
+}
+
+function dateKeyForDate(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function slidesSchema(kind) {
@@ -198,9 +211,91 @@ async function generateEvents(dateKey, history) {
   throw new Error(`AI Gateway event search failed: ${lastError || 'unknown error'}`);
 }
 
+export async function generateContentForDate(dateKey, kind, historyInput = null) {
+  const scheduledKind = kindForDate(dateFromDateKey(dateKey)).kind;
+  if (!scheduledKind || scheduledKind !== kind) {
+    throw new Error(`Date ${dateKey} is not scheduled for ${kind}`);
+  }
+  const history = historyForPrompt(historyInput || await getPreparedHistory(60));
+  return kind === 'events'
+    ? generateEvents(dateKey, history)
+    : generateStructured(dateKey, kind, history);
+}
+
+export async function replenishContentQueue(now = new Date(), horizonDays = 30, maxGenerate = 1) {
+  if (!queueConfigured()) {
+    return { ok: true, skipped: 'Content queue API is not configured', added: [] };
+  }
+
+  const horizon = Math.max(1, Math.min(Number(horizonDays) || 30, 90));
+  const limit = Math.max(1, Math.min(Number(maxGenerate) || 1, 5));
+  const current = datePartsInMoscow(now);
+  const anchor = new Date(Date.UTC(current.year, current.month - 1, current.day, 12, 0, 0));
+  const end = new Date(anchor);
+  end.setUTCDate(end.getUTCDate() + horizon);
+  const endKey = dateKeyForDate(end);
+
+  const queued = await listQueuePosts({ from: current.dateKey, to: endKey });
+  const queuedDates = new Set(queued.map((item) => item?.dateKey).filter(Boolean));
+  const missing = [];
+
+  for (let offset = 1; offset <= horizon; offset += 1) {
+    const date = new Date(anchor);
+    date.setUTCDate(anchor.getUTCDate() + offset);
+    const dateKey = dateKeyForDate(date);
+    const kind = kindForDate(date).kind;
+    if (kind && !queuedDates.has(dateKey)) missing.push({ dateKey, kind });
+  }
+
+  if (!missing.length) {
+    return { ok: true, added: [], horizonEnd: endKey, queued: queued.length };
+  }
+
+  const baseHistory = await getPreparedHistory(60);
+  const workingHistory = {
+    ...baseHistory,
+    generatedHistory: [
+      ...queued.map((item) => ({
+        dateKey: item.dateKey,
+        kind: item.kind,
+        title: item.title,
+        description: item.description,
+        body: item.body,
+        slides: item.slides,
+      })),
+      ...(Array.isArray(baseHistory.generatedHistory) ? baseHistory.generatedHistory : []),
+    ],
+  };
+
+  const added = [];
+  for (const target of missing.slice(0, limit)) {
+    const item = await generateContentForDate(target.dateKey, target.kind, workingHistory);
+    await putQueuePost(item);
+    added.push({ dateKey: item.dateKey, kind: item.kind, title: item.title });
+    workingHistory.generatedHistory.unshift(item);
+  }
+
+  return { ok: true, added, horizonEnd: endKey, queued: queued.length + added.length };
+}
+
 export async function prepareContentForToday(now = new Date()) {
   const schedule = kindForDate(now);
   if (!schedule.kind) return { ok: true, skipped: 'No publication scheduled for today', dateKey: schedule.dateKey };
+
+  if (queueConfigured()) {
+    try {
+      const queuedItem = await getQueuePost(schedule.dateKey);
+      if (queuedItem) {
+        const queuedResult = await stagePreparedContent(queuedItem, now);
+        return { ...queuedResult, source: 'cloudflare-d1' };
+      }
+    } catch (error) {
+      console.error('CONTENT_QUEUE_TODAY_READ_ERROR', {
+        dateKey: schedule.dateKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const existing = await getPreparedStatus(now);
   if (existing.prepared && existing.dateKey === schedule.dateKey && existing.scheduledKind === schedule.kind) {
@@ -211,9 +306,11 @@ export async function prepareContentForToday(now = new Date()) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      const item = schedule.kind === 'events'
-        ? await generateEvents(schedule.dateKey, history)
-        : await generateStructured(schedule.dateKey, schedule.kind, history);
+      const item = await generateContentForDate(schedule.dateKey, schedule.kind, {
+        generatedHistory: history.generatedHistory,
+        legacyPublicationIndex: history.legacyPublicationIndex,
+        recentTelegram: history.recentTelegram,
+      });
       const result = await stagePreparedContent(item, now);
       return { ...result, generated: true, attempt };
     } catch (error) {
