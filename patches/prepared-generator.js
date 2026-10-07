@@ -1,4 +1,5 @@
-import { datePartsInMoscow, getPreparedHistory, getPreparedStatus, kindForDate, stagePreparedContent } from './prepared-content.js';\nimport { getQueuePost, listQueuePosts, putQueuePost, queueConfigured } from './content-queue-client.mjs';
+import { datePartsInMoscow, getPreparedHistory, getPreparedStatus, kindForDate, stagePreparedContent } from './prepared-content.js';
+import { getQueuePost, listQueuePosts, putQueuePost, queueConfigured } from './content-queue-client.mjs';
 
 const AI_GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1';
 const MODEL = process.env.CONTENT_GENERATION_MODEL || 'openai/gpt-5.6-sol';

@@ -1,6 +1,7 @@
 import React from 'react';
 import { getCache } from '@vercel/functions';
-import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';\nimport { listQueuePosts } from '../lib/content-queue-client.mjs';
+import { loadRuntimeContentIssue } from '../lib/runtime-content-issue.mjs';
+import { listQueuePosts } from '../lib/content-queue-client.mjs';
 import PublicationCalendarClient from './publication-calendar-client.jsx';
 import { BOT_FUNCTIONS, BOT_FUNCTION_GROUPS } from './bot-functions.generated.js';
 import {

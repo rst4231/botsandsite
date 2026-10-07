@@ -1,7 +1,8 @@
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-import { publishPreparedForToday } from '../../../../lib/prepared-content.js';\nimport { prepareContentForToday, replenishContentQueue } from '../../../../lib/prepared-generator.js';
+import { publishPreparedForToday } from '../../../../lib/prepared-content.js';
+import { prepareContentForToday, replenishContentQueue } from '../../../../lib/prepared-generator.js';
 
 export async function GET(request) {
   const secret = String(process.env.CRON_SECRET || '').trim();

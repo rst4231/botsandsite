@@ -2,7 +2,8 @@ import React from 'react';
 import { ImageResponse } from 'next/og';
 import { createHash } from 'node:crypto';
 import { getCache } from '@vercel/functions';
-import { getTelegramConfig } from './server-config.js';\nimport { deleteQueuePost } from './content-queue-client.mjs';
+import { getTelegramConfig } from './server-config.js';
+import { deleteQueuePost } from './content-queue-client.mjs';
 
 const CACHE_TTL = 60 * 60 * 24 * 730;
 const cache = getCache({ namespace: 'traffic-news-v4' });
