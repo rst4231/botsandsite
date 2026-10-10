@@ -1,5 +1,6 @@
 import { datePartsInMoscow, getPreparedHistory, getPreparedStatus, kindForDate, stagePreparedContent } from './prepared-content.js';
 import { getQueuePost, listQueuePosts, putQueuePost, queueConfigured } from './content-queue-client.mjs';
+import { assertContentNotDuplicate } from './content-duplicate-guard.mjs';
 
 const AI_GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1';
 const MODEL = process.env.CONTENT_GENERATION_MODEL || 'openai/gpt-5.6-sol';
@@ -99,6 +100,7 @@ function baseInstructions(dateKey, kind, history) {
     'Ты готовишь один материал для публичного канала по арбитражу трафика.',
     `Дата по Москве: ${dateKey}. Рубрика: ${kind}.`,
     'Не повторяй темы, идеи, заголовки, формулировки, структуру слайдов, советы, примеры и практические выводы из истории ниже.',
+    'Та же основная тема под новым заголовком или с другими формулировками считается повтором. Выбирай другой практический вопрос, а не перефразируй уже опубликованное.',
     'Не пиши LH и не используй emoji.',
     'Не добавляй футеры и ссылку на VK.',
     'Не используй в публичном тексте названия Meta, Facebook или Instagram; используй естественные формулировки «рекламный кабинет», «реклама в соцсетях», «источник трафика».',
@@ -165,6 +167,81 @@ async function generateStructured(dateKey, kind, history) {
   return parseJsonText(data?.choices?.[0]?.message?.content);
 }
 
+async function verifySemanticUniqueness(item, rawHistory) {
+  const token = gatewayToken();
+  if (!token) throw new Error('AI Gateway authentication is unavailable for duplicate review');
+
+  const reviewHistory = historyForPrompt(rawHistory);
+  const response = await fetch(`${AI_GATEWAY_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      stream: false,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'Ты проверяешь контент-план на смысловые повторы.',
+            'Считай дублем материал с той же основной темой, тем же практическим выводом или тем же набором ключевых советов, даже если заголовок и формулировки изменены.',
+            'Пример: старый чек-лист первого запуска уже подробно разбирает выбор оффера, GEO, выплату и ограничения; новый материал «как выбрать оффер для первого теста» считается повтором, если не содержит принципиально нового угла.',
+            'Не считай дублем материал, который лишь упоминает тот же термин, но решает другой конкретный вопрос.',
+            'Верни только JSON по схеме.',
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            candidate: {
+              dateKey: item?.dateKey || null,
+              kind: item?.kind || null,
+              title: item?.title || '',
+              description: item?.description || '',
+              body: item?.body || '',
+              slides: Array.isArray(item?.slides) ? item.slides : [],
+            },
+            history: reviewHistory,
+          }),
+        },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'content_duplicate_review',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              duplicate: { type: 'boolean' },
+              matchedDateKey: { type: 'string' },
+              matchedTitle: { type: 'string' },
+              reason: { type: 'string' },
+            },
+            required: ['duplicate', 'matchedDateKey', 'matchedTitle', 'reason'],
+          },
+        },
+      },
+    }),
+    cache: 'no-store',
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(`Duplicate review failed: ${response.status} ${compact(data?.error?.message || data?.error || '', 300)}`);
+  }
+
+  const review = parseJsonText(data?.choices?.[0]?.message?.content);
+  if (review?.duplicate) {
+    const matched = [review.matchedTitle, review.matchedDateKey].filter(Boolean).join(' — ');
+    throw new Error(`Generated topic semantically repeats earlier content${matched ? `: ${matched}` : ''}. ${compact(review.reason, 240)}`);
+  }
+  return review;
+}
+
 function responseOutputText(data) {
   if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text;
   const parts = [];
@@ -217,10 +294,14 @@ export async function generateContentForDate(dateKey, kind, historyInput = null)
   if (!scheduledKind || scheduledKind !== kind) {
     throw new Error(`Date ${dateKey} is not scheduled for ${kind}`);
   }
-  const history = historyForPrompt(historyInput || await getPreparedHistory(60));
-  return kind === 'events'
-    ? generateEvents(dateKey, history)
-    : generateStructured(dateKey, kind, history);
+  const rawHistory = historyInput || await getPreparedHistory(60);
+  const history = historyForPrompt(rawHistory);
+  const item = kind === 'events'
+    ? await generateEvents(dateKey, history)
+    : await generateStructured(dateKey, kind, history);
+  assertContentNotDuplicate(item, rawHistory);
+  await verifySemanticUniqueness(item, rawHistory);
+  return item;
 }
 
 async function generateQueueTargetWithRetries(target, workingHistory, attempts = 3) {
@@ -391,15 +472,29 @@ export async function prepareContentForToday(now = new Date()) {
     return { ok: true, skipped: 'Content is already prepared', dateKey: schedule.dateKey, kind: schedule.kind, title: existing.title };
   }
 
-  const history = historyForPrompt(await getPreparedHistory(60));
-  let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  let generationHistory = await getPreparedHistory(60);
+  if (queueConfigured()) {
     try {
-      const item = await generateContentForDate(schedule.dateKey, schedule.kind, {
-        generatedHistory: history.generatedHistory,
-        legacyPublicationIndex: history.legacyPublicationIndex,
-        recentTelegram: history.recentTelegram,
+      const current = datePartsInMoscow(now);
+      const horizon = new Date(Date.UTC(current.year, current.month - 1, current.day, 12, 0, 0));
+      horizon.setUTCDate(horizon.getUTCDate() + 120);
+      const queued = await listQueuePosts({ from: schedule.dateKey, to: dateKeyForDate(horizon) });
+      generationHistory = historyWithQueuedItems(
+        generationHistory,
+        queued.filter((item) => item?.dateKey !== schedule.dateKey),
+      );
+    } catch (error) {
+      console.error('CONTENT_QUEUE_HISTORY_READ_ERROR', {
+        dateKey: schedule.dateKey,
+        error: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const item = await generateContentForDate(schedule.dateKey, schedule.kind, generationHistory);
       const result = await stagePreparedContent(item, now);
       return { ...result, generated: true, attempt };
     } catch (error) {

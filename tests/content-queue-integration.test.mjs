@@ -10,6 +10,7 @@ test('content queue build hook copies the Cloudflare queue client into lib', () 
   const source = "copyPatch('prepared-content.js', 'lib/prepared-content.js');";
   const transformed = transformBuild(source);
   assert.match(transformed, /content-queue-client\.mjs/);
+  assert.match(transformed, /content-duplicate-guard\.mjs/);
   assert.equal(transformBuild(transformed), transformed);
 });
 
@@ -20,6 +21,9 @@ test('generator uses D1 queue before AI fallback, retries failures and can appen
   assert.match(source, /replenishContentQueue/);
   assert.match(source, /appendNextQueuePost/);
   assert.match(source, /CONTENT_QUEUE_GENERATION_ATTEMPT_FAILED/);
+  assert.match(source, /assertContentNotDuplicate/);
+  assert.match(source, /verifySemanticUniqueness/);
+  assert.match(source, /semantically repeats earlier content/);
   assert.match(source, /maxAttempts/);
   assert.match(source, /nextScheduledDateAfter/);
   assert.match(source, /putQueuePost\(item\)/);
