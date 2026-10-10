@@ -1,8 +1,9 @@
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-import { publishPreparedForToday } from '../../../../lib/prepared-content.js';
-import { prepareContentForToday, replenishContentQueue } from '../../../../lib/prepared-generator.js';
+import { waitUntil } from '@vercel/functions';
+import { getPreparedStatus, publishPreparedForToday } from '../../../../lib/prepared-content.js';
+import { appendNextQueuePost, prepareContentForToday } from '../../../../lib/prepared-generator.js';
 
 export async function GET(request) {
   const secret = String(process.env.CRON_SECRET || '').trim();
@@ -12,22 +13,35 @@ export async function GET(request) {
   if (request.headers.get('authorization') !== `Bearer ${secret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
-  try {
-    const preparation = await prepareContentForToday();
-    if (preparation?.ok === false) {
-      return Response.json({ ...preparation, phase: 'prepare-before-publish' }, { status: 502 });
-    }
 
-    let queueRefill = null;
-    try {
-      queueRefill = await replenishContentQueue(new Date(), 30, 1);
-    } catch (error) {
-      console.error('CONTENT_QUEUE_REFILL_BEFORE_PUBLISH_ERROR', error instanceof Error ? error.message : String(error));
-      queueRefill = { ok: false, error: error instanceof Error ? error.message : String(error) };
+  try {
+    const before = await getPreparedStatus();
+    let preparation = null;
+
+    if (before.scheduledKind && !before.prepared) {
+      preparation = await prepareContentForToday();
+      if (preparation?.ok === false) {
+        return Response.json({ ...preparation, phase: 'prepare-before-publish' }, { status: 502 });
+      }
     }
 
     const result = await publishPreparedForToday();
-    return Response.json({ ...result, preparation, queueRefill }, { status: result?.ok === false ? 502 : 200 });
+
+    if (result?.ok !== false && result?.queueDeleted === true) {
+      waitUntil(
+        appendNextQueuePost(new Date(), 3)
+          .then((tail) => console.log('CONTENT_QUEUE_TAIL_APPENDED', tail))
+          .catch((error) => console.error(
+            'CONTENT_QUEUE_TAIL_APPEND_ERROR',
+            error instanceof Error ? error.message : String(error),
+          )),
+      );
+    }
+
+    return Response.json(
+      { ...result, ...(preparation ? { preparation } : {}) },
+      { status: result?.ok === false ? 502 : 200 },
+    );
   } catch (error) {
     console.error(error);
     return Response.json({

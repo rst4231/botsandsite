@@ -588,8 +588,8 @@ async function removePublishedQueueItem(item, status) {
   );
   if (!complete) return false;
   try {
-    await deleteQueuePost(item.dateKey);
-    return true;
+    const result = await deleteQueuePost(item.dateKey);
+    return Number(result?.deleted || 0) > 0;
   } catch (error) {
     console.error('CONTENT_QUEUE_DELETE_AFTER_PUBLISH_ERROR', {
       dateKey: item?.dateKey,

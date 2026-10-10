@@ -20,7 +20,8 @@ export async function GET(request) {
       console.error('CONTENT_QUEUE_REFILL_ERROR', error instanceof Error ? error.message : String(error));
       queueRefill = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
-    return Response.json({ ...result, queueRefill }, { status: result?.ok === false ? 502 : 200 });
+    const failed = result?.ok === false || queueRefill?.ok === false;
+    return Response.json({ ...result, queueRefill }, { status: failed ? 502 : 200 });
   } catch (error) {
     console.error('MORNING_CONTENT_PREPARE_ERROR', error);
     return Response.json({

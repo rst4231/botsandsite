@@ -223,7 +223,103 @@ export async function generateContentForDate(dateKey, kind, historyInput = null)
     : generateStructured(dateKey, kind, history);
 }
 
-export async function replenishContentQueue(now = new Date(), horizonDays = 30, maxGenerate = 1) {
+async function generateQueueTargetWithRetries(target, workingHistory, attempts = 3) {
+  const maxAttempts = Math.max(1, Math.min(Number(attempts) || 3, 5));
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const existing = await getQueuePost(target.dateKey);
+      if (existing) {
+        return { item: existing, attempt, existing: true };
+      }
+
+      const item = await generateContentForDate(target.dateKey, target.kind, workingHistory);
+      await putQueuePost(item);
+      return { item, attempt, existing: false };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error('CONTENT_QUEUE_GENERATION_ATTEMPT_FAILED', {
+        dateKey: target.dateKey,
+        kind: target.kind,
+        attempt,
+        maxAttempts,
+        error: lastError,
+      });
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+
+  throw new Error(`Queue generation failed for ${target.dateKey} after ${maxAttempts} attempts: ${lastError || 'unknown error'}`);
+}
+
+function historyWithQueuedItems(baseHistory, queued) {
+  return {
+    ...baseHistory,
+    generatedHistory: [
+      ...queued.map((item) => ({
+        dateKey: item.dateKey,
+        kind: item.kind,
+        title: item.title,
+        description: item.description,
+        body: item.body,
+        slides: item.slides,
+      })),
+      ...(Array.isArray(baseHistory.generatedHistory) ? baseHistory.generatedHistory : []),
+    ],
+  };
+}
+
+function nextScheduledDateAfter(dateKey) {
+  const anchor = dateFromDateKey(dateKey);
+  for (let offset = 1; offset <= 45; offset += 1) {
+    const date = new Date(anchor);
+    date.setUTCDate(anchor.getUTCDate() + offset);
+    const schedule = kindForDate(date);
+    if (schedule.kind) return { dateKey: dateKeyForDate(date), kind: schedule.kind };
+  }
+  throw new Error(`Could not find next scheduled publication after ${dateKey}`);
+}
+
+export async function appendNextQueuePost(now = new Date(), attempts = 3) {
+  if (!queueConfigured()) {
+    return { ok: true, skipped: 'Content queue API is not configured', added: [] };
+  }
+
+  const current = datePartsInMoscow(now);
+  const horizon = new Date(Date.UTC(current.year, current.month - 1, current.day, 12, 0, 0));
+  horizon.setUTCDate(horizon.getUTCDate() + 120);
+  const queued = await listQueuePosts({ from: current.dateKey, to: dateKeyForDate(horizon) });
+  const tailDateKey = queued.reduce(
+    (latest, item) => item?.dateKey && item.dateKey > latest ? item.dateKey : latest,
+    current.dateKey,
+  );
+  const target = nextScheduledDateAfter(tailDateKey);
+
+  const existing = await getQueuePost(target.dateKey);
+  if (existing) {
+    return { ok: true, added: [], existing: target, tailDateKey };
+  }
+
+  const baseHistory = await getPreparedHistory(60);
+  const workingHistory = historyWithQueuedItems(baseHistory, queued);
+  const generated = await generateQueueTargetWithRetries(target, workingHistory, attempts);
+
+  return {
+    ok: true,
+    added: generated.existing ? [] : [{
+      dateKey: generated.item.dateKey,
+      kind: generated.item.kind,
+      title: generated.item.title,
+    }],
+    attempt: generated.attempt,
+    tailDateKey,
+  };
+}
+
+export async function replenishContentQueue(now = new Date(), horizonDays = 30, maxGenerate = 1, attempts = 3) {
   if (!queueConfigured()) {
     return { ok: true, skipped: 'Content queue API is not configured', added: [] };
   }
@@ -253,27 +349,19 @@ export async function replenishContentQueue(now = new Date(), horizonDays = 30, 
   }
 
   const baseHistory = await getPreparedHistory(60);
-  const workingHistory = {
-    ...baseHistory,
-    generatedHistory: [
-      ...queued.map((item) => ({
-        dateKey: item.dateKey,
-        kind: item.kind,
-        title: item.title,
-        description: item.description,
-        body: item.body,
-        slides: item.slides,
-      })),
-      ...(Array.isArray(baseHistory.generatedHistory) ? baseHistory.generatedHistory : []),
-    ],
-  };
-
+  const workingHistory = historyWithQueuedItems(baseHistory, queued);
   const added = [];
+
   for (const target of missing.slice(0, limit)) {
-    const item = await generateContentForDate(target.dateKey, target.kind, workingHistory);
-    await putQueuePost(item);
-    added.push({ dateKey: item.dateKey, kind: item.kind, title: item.title });
-    workingHistory.generatedHistory.unshift(item);
+    const generated = await generateQueueTargetWithRetries(target, workingHistory, attempts);
+    if (!generated.existing) {
+      added.push({
+        dateKey: generated.item.dateKey,
+        kind: generated.item.kind,
+        title: generated.item.title,
+      });
+      workingHistory.generatedHistory.unshift(generated.item);
+    }
   }
 
   return { ok: true, added, horizonEnd: endKey, queued: queued.length + added.length };
