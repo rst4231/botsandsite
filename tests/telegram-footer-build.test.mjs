@@ -17,3 +17,11 @@ test('replaces Telegram footer with exactly three requested links', () => {
 test('fails loudly if Telegram footer marker is missing', () => {
   assert.throws(() => replaceTelegramFooter('const X = 1;'), /Telegram footer marker/);
 });
+
+
+test('new Telegram guides link is present in the build template', () => {
+  assert.ok(TELEGRAM_FOOTER_LINE.includes('https://t.me/rstshelp_bot?start=6ad09f4c0c2a24a3e40abe6c'));
+  assert.ok(TELEGRAM_FOOTER_LINE.includes('>Руководства</a>'));
+  assert.ok(!TELEGRAM_FOOTER_LINE.includes('app.lava.top'));
+  assert.ok(!TELEGRAM_FOOTER_LINE.includes('>Руководство</a>'));
+});
