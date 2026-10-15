@@ -87,6 +87,7 @@ export function kindForDate(date = new Date()) {
   if (parts.weekday === 5) return { ...parts, kind: 'team' };
   if (parts.weekday === 0) return { ...parts, kind: 'beginner' };
   if (parts.weekday === 6 && parts.day >= 8 && parts.day <= 14) return { ...parts, kind: 'events' };
+  if (parts.weekday === 6 && parts.day >= 15 && parts.day <= 21) return { ...parts, kind: 'events', guideSlot: true };
   return { ...parts, kind: null };
 }
 
@@ -97,7 +98,22 @@ function allPublicText(item) {
   return `${item.title || ''} ${item.description || ''} ${item.body || ''} ${slideText}`;
 }
 
+function isMonthlyGuides(item) {
+  if (item?.description !== 'monthly-guides' || item?.format !== 'text' || item?.kind !== 'events') return false;
+  const date = new Date(`${item.dateKey}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && kindForDate(date).guideSlot === true;
+}
+
+function guideTextHtml(body) {
+  return escapeHtml(body)
+    .replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, (_, label, href) => `<a href="${href}">${label}</a>`)
+    .replace(/\*\*([\s\S]*?)\*\*/g, '<b>$1</b>');
+}
+
 function telegramText(item) {
+  if (isMonthlyGuides(item)) {
+    return `<b>${escapeHtml(item.title)}</b>\n\n${guideTextHtml(item.body)}`;
+  }
   if (item.format === 'text') {
     return `<b>${escapeHtml(item.title)}</b>\n\n${escapeHtml(item.body)}${TELEGRAM_FOOTER}`;
   }
@@ -241,11 +257,13 @@ export async function stagePreparedContent(input, now = new Date()) {
     body: normalize(item.body),
     slides: item.slides.map((slide) => [normalize(slide.title), normalize(slide.body)]),
   });
+  if (!isMonthlyGuides(item)) {
   if (history.some((entry) => entry.fingerprint === itemFingerprint)) {
     throw new Error('This material exactly repeats an earlier publication');
   }
   if (history.some((entry) => normalize(entry.title) === normalize(item.title))) {
     throw new Error('This title has already been published');
+  }
   }
 
   const staged = {
@@ -583,8 +601,10 @@ async function savePublishedHistory(item, status) {
 async function removePublishedQueueItem(item, status) {
   const complete = Boolean(
     status?.telegram
-    && status?.vk
-    && (item?.format !== 'slides' || status?.vkStory)
+    && (isMonthlyGuides(item) || (
+      status?.vk
+      && (item?.format !== 'slides' || status?.vkStory)
+    ))
   );
   if (!complete) return false;
   try {
@@ -621,6 +641,10 @@ export async function publishPreparedForToday(now = new Date()) {
 
   const statusKey = `prepared-status:${schedule.dateKey}`;
   const status = (await cache.get(statusKey)) || {};
+  if (isMonthlyGuides(item) && status.telegram) {
+    const queueDeleted = await removePublishedQueueItem(item, status);
+    return { ok: true, skipped: 'Monthly guides already published to Telegram', queueDeleted, ...status };
+  }
   if (status.telegram && status.vk) {
     const queueDeleted = await removePublishedQueueItem(item, status);
     return { ok: true, skipped: 'Prepared content was already published', queueDeleted, ...status };
@@ -644,7 +668,7 @@ export async function publishPreparedForToday(now = new Date()) {
     }
   }
 
-  if (!status.vk) {
+  if (!status.vk && !isMonthlyGuides(item)) {
     try {
       status.vk = await sendVk(item, images);
       await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });
@@ -653,7 +677,7 @@ export async function publishPreparedForToday(now = new Date()) {
     }
   }
 
-  if (status.telegram && status.vk && !status.historySaved) {
+  if (status.telegram && (status.vk || isMonthlyGuides(item)) && !status.historySaved) {
     await savePublishedHistory(item, status);
     status.historySaved = true;
     await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });

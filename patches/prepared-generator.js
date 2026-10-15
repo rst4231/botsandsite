@@ -289,10 +289,29 @@ async function generateEvents(dateKey, history) {
   throw new Error(`AI Gateway event search failed: ${lastError || 'unknown error'}`);
 }
 
+async function monthlyGuidesContent(dateKey) {
+  const template = await getQueuePost('2099-01-01');
+  if (!template || template.description !== 'monthly-guides' || template.format !== 'text' || !template.body?.trim()) {
+    throw new Error('Monthly guides template is missing or invalid in D1');
+  }
+  return {
+    dateKey,
+    kind: 'events',
+    format: 'text',
+    title: template.title,
+    description: 'monthly-guides',
+    body: template.body,
+    slides: [],
+  };
+}
+
 export async function generateContentForDate(dateKey, kind, historyInput = null) {
   const scheduledKind = kindForDate(dateFromDateKey(dateKey)).kind;
   if (!scheduledKind || scheduledKind !== kind) {
     throw new Error(`Date ${dateKey} is not scheduled for ${kind}`);
+  }
+  if (kindForDate(dateFromDateKey(dateKey)).guideSlot) {
+    return monthlyGuidesContent(dateKey);
   }
   const rawHistory = historyInput || await getPreparedHistory(60);
   const history = historyForPrompt(rawHistory);
@@ -495,6 +514,14 @@ export async function prepareContentForToday(now = new Date()) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       const item = await generateContentForDate(schedule.dateKey, schedule.kind, generationHistory);
+      if (kindForDate(now).guideSlot && queueConfigured()) {
+        const existingQueueItem = await getQueuePost(schedule.dateKey);
+        if (existingQueueItem) {
+          const prepared = await stagePreparedContent(existingQueueItem, now);
+          return { ...prepared, source: 'cloudflare-d1' };
+        }
+        await putQueuePost(item);
+      }
       const result = await stagePreparedContent(item, now);
       return { ...result, generated: true, attempt };
     } catch (error) {

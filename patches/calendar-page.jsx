@@ -45,8 +45,11 @@ async function addPreparedContent(items) {
   const preparedByDate = new Map(pairs);
   return items.map((item) => {
     const preparedContent = preparedByDate.get(item.dateKey) || null;
+    const queuedItem = queueByDate.get(item.dateKey);
+    const occupiedByOtherPost = item.kind === 'guides' && queuedItem && queuedItem.description !== 'monthly-guides';
     return {
       ...item,
+      ...(occupiedByOtherPost ? { kind: 'events', label: 'Запланированный пост' } : {}),
       preparedTitle: preparedContent?.title || null,
       preparedContent,
     };

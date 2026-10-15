@@ -22,7 +22,7 @@ test('maps Wednesday, Friday and Sunday to the correct rubrics', () => {
 test('maps only the second Saturday to industry events', () => {
   assert.equal(publicationForDateKey('2026-09-05'), null);
   assert.equal(publicationForDateKey('2026-09-12')?.kind, 'events');
-  assert.equal(publicationForDateKey('2026-09-19'), null);
+  assert.equal(publicationForDateKey('2026-09-19')?.kind, 'guides');
 });
 
 test('all scheduled publications use 18:40 Moscow time', () => {
@@ -88,4 +88,16 @@ test('calendar preview preserves a text post body without internal fields', asyn
     format: 'text',
     slides: [],
   });
+});
+
+test('third Saturday is a monthly guides publication at 18:40 Moscow time', () => {
+  assert.deepEqual(
+    { kind: publicationForDateKey('2026-10-17')?.kind, time: publicationForDateKey('2026-10-17')?.time },
+    { kind: 'guides', time: '18:40 МСК' },
+  );
+  assert.equal(publicationForDateKey('2026-11-21')?.kind, 'guides');
+  assert.equal(publicationForDateKey('2026-12-19')?.kind, 'guides');
+  assert.equal(publicationForDateKey('2026-10-24'), null);
+  const october = buildPublicationCalendar(new Date('2026-10-15T09:00:00Z'), 30);
+  assert.equal(october.find((item) => item.dateKey === '2026-10-17')?.label, 'Руководства по арбитражу трафика');
 });

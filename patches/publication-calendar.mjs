@@ -6,6 +6,7 @@ const RUBRICS = {
   team: 'Работа команды',
   beginner: 'Пост для новичков',
   events: 'Отраслевые события',
+  guides: 'Руководства по арбитражу трафика',
 };
 
 function pad(value) {
@@ -59,6 +60,7 @@ export function publicationForDateKey(dateKey) {
   else if (weekday === 5) kind = 'team';
   else if (weekday === 0) kind = 'beginner';
   else if (weekday === 6 && day >= 8 && day <= 14) kind = 'events';
+  else if (weekday === 6 && day >= 15 && day <= 21) kind = 'guides';
 
   if (!kind) return null;
   return {

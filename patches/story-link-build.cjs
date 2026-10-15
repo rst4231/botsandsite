@@ -28,7 +28,7 @@ preparedContent = preparedContent.replace(
   "if (status.telegram && status.vk && (item.format !== 'slides' || status.vkStory)) {",
 );
 const scheduledVkBlock = [
-  "  if (!status.vk) {",
+  "  if (!status.vk && !isMonthlyGuides(item)) {",
   "    try {",
   "      status.vk = await sendVk(item, images);",
   "      await cache.set(statusKey, status, { ttl: CACHE_TTL, tags: ['prepared-publications'] });",

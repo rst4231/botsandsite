@@ -391,3 +391,9 @@
   .publication-calendar__post-body { padding: 17px 16px; }
   .publication-calendar__slide { padding: 16px; }
 }
+
+.publication-calendar__kind--guides { background: #eff6ff; color: #1d4ed8; }
+.publication-calendar__dot--guides { background: #3b82f6; }
+.publication-calendar__post-body--guides p { margin: 0 0 1rem; }
+.publication-calendar__post-body--guides p:last-child { margin-bottom: 0; }
+.publication-calendar__post-body--guides a { color: #1d4ed8; text-decoration: underline; }
