@@ -31,6 +31,10 @@ test('sends the prepared five-slide post to a private Telegram chat without publ
   assert.deepEqual(result, [900, 901, 902, 903, 904]);
   assert.equal(calls[0].url, 'https://api.telegram.org/bot123:abc/sendMediaGroup');
   assert.equal(calls[0].options.body.get('chat_id'), '160628165');
+  const media = JSON.parse(calls[0].options.body.get('media'));
+  assert.match(media[0].caption, /t\.me\/rstshelp_bot\?start=6ad09f4c0c2a24a3e40abe6c/);
+  assert.match(media[0].caption, />Руководства<\/a>/);
+  assert.doesNotMatch(media[0].caption, /app\.lava\.top/);
 });
 
 test('build removes the obsolete query-secret preview route', () => {

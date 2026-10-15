@@ -11,7 +11,11 @@ const build = fs.readFileSync(new URL('../build.cjs', import.meta.url), 'utf8');
 test('Telegram footer is canonical in source and preview', () => {
   assert.doesNotMatch(prepared.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '', />Канал</);
   assert.doesNotMatch(preview.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '', />Канал</);
-  assert.match(prepared, />Руководство<\/a>/);
+  assert.match(prepared, />Руководства<\/a>/);
+  assert.match(preview, />Руководства<\/a>/);
+  assert.match(prepared, /t\.me\/rstshelp_bot\?start=6ad09f4c0c2a24a3e40abe6c/);
+  assert.match(preview, /t\.me\/rstshelp_bot\?start=6ad09f4c0c2a24a3e40abe6c/);
+  assert.doesNotMatch(prepared + preview, /app\.lava\.top/);
 });
 
 test('production Telegram slides fail closed unless exactly five images are rendered and returned', () => {
