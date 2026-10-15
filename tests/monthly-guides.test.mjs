@@ -45,3 +45,17 @@ test('guides appear in calendar with preview and outgoing link', () => {
   assert.match(calendarClient, /isGuides=\{item\.kind === 'guides'\}/);
   assert.match(calendarClient, /href=\{link\[2\]\}/);
 });
+
+test('monthly guides recovery cannot mistake last month\'s identical title for today', () => {
+  const transformer = fs.readFileSync(new URL('../patches/publication-idempotency-transform.cjs', import.meta.url), 'utf8');
+  assert.match(transformer, /if \(isMonthlyGuides\(item\)\)/);
+  assert.match(transformer, /entry\.datetime/);
+  assert.match(transformer, /datePartsInMoscow\(new Date\(entry\.datetime\)\)\.dateKey !== item\.dateKey/);
+});
+
+test('guide link stays clickable without Telegram link preview', () => {
+  const sending = publication.slice(publication.indexOf('async function sendTelegramText('), publication.indexOf('async function sendTelegramSlides('));
+  assert.match(sending, /disable_web_page_preview: true/);
+  assert.match(publication, /function guideTextHtml\(body\)/);
+  assert.match(publication, /<a href=/);
+});

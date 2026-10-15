@@ -14,6 +14,11 @@ function helperSource() {
   const expectedTitle = normalize(item.title);
   const match = entries.find((entry) => {
     if (!normalize(entry.text || '').includes(expectedTitle)) return false;
+    // A monthly announcement keeps its title; last month's post is not a recovery for today's post.
+    if (isMonthlyGuides(item)) {
+      if (!entry.datetime || !Number.isFinite(new Date(entry.datetime).getTime())) return false;
+      if (datePartsInMoscow(new Date(entry.datetime)).dateKey !== item.dateKey) return false;
+    }
     if (item.format === 'slides') return entry.photoCount === 5 && entry.groupedMedia === true;
     return entry.photoCount === 0;
   });
