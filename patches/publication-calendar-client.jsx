@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { parsePostInline } from '../lib/post-formatting.mjs';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MONTHS = [
@@ -79,26 +80,30 @@ function CalendarDay({ item, onOpen, isToday }) {
   );
 }
 
-function PostTextPreview({ body, isGuides }) {
-  if (!isGuides) {
-    return <div className="publication-calendar__post-body">{body}</div>;
-  }
+function renderFormattedNodes(nodes, prefix = 'text') {
+  return nodes.map((node, index) => {
+    const key = `${prefix}-${index}`;
+    if (node.type === 'bold') {
+      return <strong key={key}>{renderFormattedNodes(node.children, key)}</strong>;
+    }
+    if (node.type === 'link') {
+      return (
+        <a key={key} href={node.url} target="_blank" rel="noopener noreferrer">
+          {node.label}
+        </a>
+      );
+    }
+    return <React.Fragment key={key}>{node.text}</React.Fragment>;
+  });
+}
+
+function PostTextPreview({ body }) {
   const paragraphs = String(body || '').split(/\n{2,}/).filter(Boolean);
   return (
-    <div className="publication-calendar__post-body publication-calendar__post-body--guides">
-      {paragraphs.map((paragraph, index) => {
-        const bold = paragraph.startsWith('**') && paragraph.endsWith('**');
-        const text = bold ? paragraph.slice(2, -2) : paragraph;
-        const link = text.match(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/);
-        const rendered = link ? (
-          <>
-            {text.slice(0, link.index)}
-            <a href={link[2]} target="_blank" rel="noopener noreferrer">{link[1]}</a>
-            {text.slice(link.index + link[0].length)}
-          </>
-        ) : text;
-        return <p key={index}>{bold ? <strong>{rendered}</strong> : rendered}</p>;
-      })}
+    <div className="publication-calendar__post-body publication-calendar__post-body--formatted">
+      {paragraphs.map((paragraph, index) => (
+        <p key={index}>{renderFormattedNodes(parsePostInline(paragraph), `p-${index}`)}</p>
+      ))}
     </div>
   );
 }
@@ -139,7 +144,7 @@ function PostPreviewDialog({ item, onClose }) {
           <div className="publication-calendar__preview">
             <h3 id={dialogTitleId}>{preparedContent.title}</h3>
             {preparedContent.format === 'text' ? (
-              <PostTextPreview body={preparedContent.body} isGuides={item.kind === 'guides'} />
+              <PostTextPreview body={preparedContent.body} />
             ) : (
               <>
                 {preparedContent.description ? (

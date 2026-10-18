@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { getCache } from '@vercel/functions';
 import { getTelegramConfig } from './server-config.js';
 import { deleteQueuePost } from './content-queue-client.mjs';
+import { telegramBodyHtml, vkBodyText } from './post-formatting.mjs';
 
 const CACHE_TTL = 60 * 60 * 24 * 730;
 const cache = getCache({ namespace: 'traffic-news-v4' });
@@ -105,9 +106,7 @@ function isMonthlyGuides(item) {
 }
 
 function guideTextHtml(body) {
-  return escapeHtml(body)
-    .replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, (_, label, href) => `<a href="${href}">${label}</a>`)
-    .replace(/\*\*([\s\S]*?)\*\*/g, '<b>$1</b>');
+  return telegramBodyHtml(body);
 }
 
 function telegramText(item) {
@@ -115,7 +114,7 @@ function telegramText(item) {
     return `<b>${escapeHtml(item.title)}</b>\n\n${guideTextHtml(item.body)}`;
   }
   if (item.format === 'text') {
-    return `<b>${escapeHtml(item.title)}</b>\n\n${escapeHtml(item.body)}${TELEGRAM_FOOTER}`;
+    return `<b>${escapeHtml(item.title)}</b>\n\n${telegramBodyHtml(item.body)}${TELEGRAM_FOOTER}`;
   }
   return `<b>${escapeHtml(item.title)}</b>\n\n${escapeHtml(item.description)}${TELEGRAM_FOOTER}`;
 }
@@ -304,7 +303,7 @@ export async function getPreparedStatus(date = new Date()) {
 }
 
 function vkText(item) {
-  const body = item.format === 'text' ? item.body : item.description;
+  const body = item.format === 'text' ? vkBodyText(item.body) : item.description;
   return `${item.title}\n\n${body}${VK_FOOTER}`;
 }
 

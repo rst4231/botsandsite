@@ -397,3 +397,8 @@
 .publication-calendar__post-body--guides p { margin: 0 0 1rem; }
 .publication-calendar__post-body--guides p:last-child { margin-bottom: 0; }
 .publication-calendar__post-body--guides a { color: #1d4ed8; text-decoration: underline; }
+
+/* Shared text-post formatting: events and guides. */
+.publication-calendar__post-body--formatted p { margin: 0 0 1rem; }
+.publication-calendar__post-body--formatted p:last-child { margin-bottom: 0; }
+.publication-calendar__post-body--formatted a { color: #175cd3; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }

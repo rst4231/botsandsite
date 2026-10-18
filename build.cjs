@@ -45,6 +45,7 @@ contentBot = `${contentBot.slice(0, markerIndex)}${slimSuffix}`;
 fs.writeFileSync(contentBotPath, contentBot);
 
 copyPatch('prepared-content.js', 'lib/prepared-content.js');
+copyPatch('post-formatting.mjs', 'lib/post-formatting.mjs');
 copyPatch('content-auth.js', 'lib/content-auth.js');
 copyPatch('prepared-stage-route.js', 'app/api/content/stage/route.js');
 copyPatch('prepared-history-route.js', 'app/api/content/history/route.js');
@@ -66,7 +67,7 @@ if (!vkTextPattern.test(preparedContent)) throw new Error('Could not locate prep
 preparedContent = preparedContent.replace(vkTextPattern, [
   "function vkText(item) {",
   "  if (item.format === 'text') {",
-  "    return `${item.title}\\n\\n${item.body}${VK_FOOTER}`;",
+  "    return `${item.title}\\n\\n${vkBodyText(item.body)}${VK_FOOTER}`;",
   "  }",
   "  const sections = item.slides.map((slide) => `${slide.title}\\n${slide.body}`).join('\\n\\n');",
   "  return `${item.title}\\n\\n${item.description}\\n\\n${sections}${VK_FOOTER}`;",
