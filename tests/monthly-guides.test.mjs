@@ -42,8 +42,9 @@ test('guides appear in calendar with preview and outgoing link', () => {
   assert.match(calendarPage, /occupiedByOtherPost/);
   assert.match(calendarPage, /description !== 'monthly-guides'/);
   assert.match(calendarClient, /Третья суббота · Руководства/);
-  assert.match(calendarClient, /isGuides=\{item\.kind === 'guides'\}/);
-  assert.match(calendarClient, /href=\{link\[2\]\}/);
+  assert.match(calendarClient, /parsePostInline\(paragraph\)/);
+  assert.match(calendarClient, /href=\{node\.url\}/);
+  assert.match(calendarClient, /publication-calendar__post-body--formatted/);
 });
 
 test('monthly guides recovery cannot mistake last month\'s identical title for today', () => {
