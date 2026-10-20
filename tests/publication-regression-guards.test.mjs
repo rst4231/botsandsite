@@ -9,13 +9,18 @@ const manual = fs.readFileSync(new URL('../patches/prepared-publish-now-route.js
 const build = fs.readFileSync(new URL('../build.cjs', import.meta.url), 'utf8');
 
 test('Telegram footer is canonical in source and preview', () => {
-  assert.doesNotMatch(prepared.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '', />Канал</);
-  assert.doesNotMatch(preview.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '', />Канал</);
-  assert.match(prepared, />Руководства<\/a>/);
-  assert.match(preview, />Руководства<\/a>/);
-  assert.match(prepared, /t\.me\/rstshelp_bot\?start=6ad09f4c0c2a24a3e40abe6c/);
-  assert.match(preview, /t\.me\/rstshelp_bot\?start=6ad09f4c0c2a24a3e40abe6c/);
-  assert.doesNotMatch(prepared + preview, /app\.lava\.top/);
+  const preparedFooter = prepared.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '';
+  const previewFooter = preview.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '';
+  assert.equal(preparedFooter, previewFooter);
+  const target = 'https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27';
+  for (const footer of [preparedFooter, previewFooter]) {
+    const links = [...footer.matchAll(/href="([^"]+)">([^<]+)<\/a>/g)];
+    assert.deepEqual(links.map((link) => [link[1], link[2]]), [
+      [target, 'Научиться лить'],
+      [target, 'Войти в команду'],
+    ]);
+    assert.doesNotMatch(footer, /О нас|Кейсы|Руководства|app\.lava\.top/);
+  }
 });
 
 test('production Telegram slides fail closed unless exactly five images are rendered and returned', () => {
