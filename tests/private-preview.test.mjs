@@ -39,6 +39,9 @@ test('sends the prepared five-slide post to a private Telegram chat without publ
     [target, 'Войти в команду'],
   ]);
   assert.equal(media[0].parse_mode, 'HTML');
+  assert.match(media[0].caption, /\n\n• <a href=/);
+  assert.match(media[0].caption, /<\/a>\n• <a href=/);
+  assert.doesNotMatch(media[0].caption, /<\/a> \| <a href=/);
   assert.doesNotMatch(media[0].caption, /О нас|Кейсы|Руководства|app\.lava\.top/);
 });
 

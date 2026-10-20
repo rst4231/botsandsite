@@ -24,5 +24,7 @@ test('new Telegram footer has two labels leading to the same bot link', () => {
   const links = [...TELEGRAM_FOOTER_LINE.matchAll(/href="([^"]+)">([^<]+)<\/a>/g)];
   assert.deepEqual(links.map((link) => [link[1], link[2]]), [[target, 'Научиться лить'], [target, 'Войти в команду']]);
   assert.match(TELEGRAM_FOOTER_LINE, /• <a href=/);
+  assert.match(TELEGRAM_FOOTER_LINE, /<\/a>\\n• <a href=/);
+  assert.doesNotMatch(TELEGRAM_FOOTER_LINE, /<\/a> \| <a href=/);
   assert.doesNotMatch(TELEGRAM_FOOTER_LINE, /О нас|Кейсы|Руководства|app\.lava\.top/);
 });

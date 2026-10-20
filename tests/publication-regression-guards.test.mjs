@@ -20,6 +20,8 @@ test('Telegram footer is canonical in source and preview', () => {
       [target, 'Войти в команду'],
     ]);
     assert.doesNotMatch(footer, /О нас|Кейсы|Руководства|app\.lava\.top/);
+    assert.match(footer, /<\/a>\\n• <a href=/);
+    assert.doesNotMatch(footer, /<\/a> \| <a href=/);
   }
 });
 

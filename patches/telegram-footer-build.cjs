@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TELEGRAM_FOOTER_LINE = "const TELEGRAM_FOOTER = '\\n\\n• <a href=\"https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27\">Научиться лить</a> | <a href=\"https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27\">Войти в команду</a>';";
+const TELEGRAM_FOOTER_LINE = "const TELEGRAM_FOOTER = '\\n\\n• <a href=\"https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27\">Научиться лить</a>\\n• <a href=\"https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27\">Войти в команду</a>';";
 
 function replaceTelegramFooter(source) {
   const pattern = /const TELEGRAM_FOOTER = '[^']*';/;
