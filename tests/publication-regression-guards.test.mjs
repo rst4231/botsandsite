@@ -12,15 +12,17 @@ test('Telegram footer is canonical in source and preview', () => {
   const preparedFooter = prepared.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '';
   const previewFooter = preview.match(/const TELEGRAM_FOOTER = [^\n]+/)?.[0] || '';
   assert.equal(preparedFooter, previewFooter);
+  const guidesTarget = 'https://t.me/rstshelp_bot?start=6ad09f4c0c2a24a3e40abe6c';
   const target = 'https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27';
   for (const footer of [preparedFooter, previewFooter]) {
     const links = [...footer.matchAll(/href="([^"]+)">([^<]+)<\/a>/g)];
     assert.deepEqual(links.map((link) => [link[1], link[2]]), [
+      [guidesTarget, 'Руководства'],
       [target, 'Научиться лить'],
       [target, 'Войти в команду'],
     ]);
-    assert.doesNotMatch(footer, /О нас|Кейсы|Руководства|app\.lava\.top/);
-    assert.match(footer, /<\/a>\\n• <a href=/);
+    assert.doesNotMatch(footer, /О нас|Кейсы|app\.lava\.top/);
+    assert.equal((footer.match(/<\/a>\\n• <a href=/g) || []).length, 2);
     assert.doesNotMatch(footer, /<\/a> \| <a href=/);
   }
 });

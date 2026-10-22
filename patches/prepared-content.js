@@ -14,7 +14,7 @@ const VK_TOKEN_CACHE_KEY = 'vk-access-token-v1';
 const PUBLIC_CHANNEL_FEED_URL = 'https://t.me/s/teamcpalh';
 const DURABLE_HISTORY_URL = 'https://api.github.com/repos/rst4231/botsandsite/issues/9';
 
-const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27">Научиться лить</a>\n• <a href="https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27">Войти в команду</a>';
+const TELEGRAM_FOOTER = '\n\n• <a href="https://t.me/rstshelp_bot?start=6ad09f4c0c2a24a3e40abe6c">Руководства</a>\n• <a href="https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27">Научиться лить</a>\n• <a href="https://t.me/rstshelp_bot?start=6671465ac84ab24b4702fa27">Войти в команду</a>';
 const VK_FOOTER = '\n\n[https://vk.ru/app5898182_-160851478#s=3761005|Теория] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Научиться лить] | [https://vk.com/app5898182_-160851478#s=3112330&force=1&utf=1|Войти в команду]';
 const HISTORY_KEY = 'prepared-content-history-v1';
 const FORBIDDEN_BRANDS = /(?:\bMeta\b|\bFacebook\b|\bInstagram\b|\bМета\b|Фейсбук|Инстаграм)/i;
