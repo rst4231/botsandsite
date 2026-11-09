@@ -207,10 +207,9 @@ export async function processMaximProfileSyncEvent(event, options) {
 
   const sourceVariables = source.variables && typeof source.variables === 'object' && !Array.isArray(source.variables) ? source.variables : {};
   const destinationVariables = destination.variables && typeof destination.variables === 'object' && !Array.isArray(destination.variables) ? destination.variables : {};
-  const profileVariables = ['Возраст'].filter((name) => profileHasValue(sourceVariables[name]) && !profileHasValue(destinationVariables[name])).map((name) => ({ variable_name: name, variable_value: String(sourceVariables[name]) }));
-  const profileNote = buildMaximProfileNote(sourceVariables, technicalProfileVariables || profileTechnicalVariables());
+  const profileNote = buildMaximProfileNote(sourceVariables, [...(technicalProfileVariables || profileTechnicalVariables()), 'NAME', 'Возраст']);
   const info = buildMaximInfo(destinationVariables.INFO, sourceVariables['Анкета 1']);
-  const variables = [...profileVariables, ...(info.changed ? [{ variable_name: 'INFO', variable_value: info.value }] : [])];
+  const variables = info.changed ? [{ variable_name: 'INFO', variable_value: info.value }] : [];
   if (variables.length) await client.setVariables(destinationId, variables);
   let profileNotesCreated = 0;
   if (profileNote) {
@@ -219,5 +218,5 @@ export async function processMaximProfileSyncEvent(event, options) {
     const texts = new Set((Array.isArray(existing) ? existing : []).map((note) => String(note?.text || '')));
     for (const text of splitMaximProfileNote(profileNote)) if (!texts.has(text)) { await api.createNote({ botId: MAXIM_BOT_ID, contactId: destinationId, text }); profileNotesCreated += 1; }
   }
-  return { status: variables.length || profileNotesCreated ? 'success' : 'up_to_date', destinationId, sourceId: source.id, telegramId: String(telegramId), variablesCopied: profileVariables.length, infoUpdated: info.changed, profileNotesCreated, sync: 'irina_to_maxim' };
+  return { status: variables.length || profileNotesCreated ? 'success' : 'up_to_date', destinationId, sourceId: source.id, telegramId: String(telegramId), variablesCopied: variables.length, infoUpdated: info.changed, profileNotesCreated, sync: 'irina_to_maxim' };
 }
