@@ -30,14 +30,14 @@ test('separate Maxim sync copies only Анкета 1 into INFO and filters NAME/
   const notesApi = { async listNotes() { return []; }, async createNote(value) { created.push(value); } };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
-  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Опыт: Новичок\nАнкета 1: Ответы участника' }]);
+  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Анкета 1: Ответы участника\nОпыт: Новичок' }]);
   assert.deepEqual(api.writes[0].variables, [
     { variable_name: 'INFO', variable_value: 'Ответы участника' },
   ]);
 });
 
 test('separate Maxim sync preserves filled fields and appends INFO only once', async () => {
-  const profile = 'Опыт: Новичок\nАнкета 1: Ответы участника';
+  const profile = 'Анкета 1: Ответы участника\nОпыт: Новичок';
   const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Ответы участника', 'Возраст': 30, 'Опыт': 'Новичок' }, destinationVariables: { NAME: 'Своё имя', 'Возраст': 40, INFO: 'Старое' } });
   const notesApi = { async listNotes() { return [{ text: profile }]; }, async createNote() { throw new Error('duplicate note'); } };
   await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
