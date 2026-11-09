@@ -207,9 +207,9 @@ export async function processMaximProfileSyncEvent(event, options) {
 
   const sourceVariables = source.variables && typeof source.variables === 'object' && !Array.isArray(source.variables) ? source.variables : {};
   const destinationVariables = destination.variables && typeof destination.variables === 'object' && !Array.isArray(destination.variables) ? destination.variables : {};
-  const profileVariables = ['NAME', 'Возраст'].filter((name) => profileHasValue(sourceVariables[name]) && !profileHasValue(destinationVariables[name])).map((name) => ({ variable_name: name, variable_value: String(sourceVariables[name]) }));
+  const profileVariables = ['Возраст'].filter((name) => profileHasValue(sourceVariables[name]) && !profileHasValue(destinationVariables[name])).map((name) => ({ variable_name: name, variable_value: String(sourceVariables[name]) }));
   const profileNote = buildMaximProfileNote(sourceVariables, technicalProfileVariables || profileTechnicalVariables());
-  const info = buildMaximInfo(destinationVariables.INFO, profileNote);
+  const info = buildMaximInfo(destinationVariables.INFO, sourceVariables['Анкета 1']);
   const variables = [...profileVariables, ...(info.changed ? [{ variable_name: 'INFO', variable_value: info.value }] : [])];
   if (variables.length) await client.setVariables(destinationId, variables);
   let profileNotesCreated = 0;
