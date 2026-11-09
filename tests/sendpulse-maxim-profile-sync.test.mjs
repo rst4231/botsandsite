@@ -25,36 +25,36 @@ function options(api, notesApi) {
 }
 
 test('separate Maxim sync copies empty fields, INFO and a filtered note from Irina', async () => {
-  const api = client({ sourceVariables: { NAME: 'Антон', 'Возраст': 30, 'Опыт': 'Новичок', utm_source: 'facebook', Business_sync: 'x', 'Написал в лс': 'Да' } });
+  const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Ответы участника', 'Возраст': 30, 'Опыт': 'Новичок', utm_source: 'facebook', Business_sync: 'x', 'Написал в лс': 'Да' } });
   const created = [];
   const notesApi = { async listNotes() { return []; }, async createNote(value) { created.push(value); } };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
   assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Имя: Антон\nВозраст: 30\nОпыт: Новичок' }]);
   assert.deepEqual(api.writes[0].variables, [
-    { variable_name: 'NAME', variable_value: 'Антон' },
     { variable_name: 'Возраст', variable_value: '30' },
-    { variable_name: 'INFO', variable_value: 'Имя: Антон\nВозраст: 30\nОпыт: Новичок' },
+    { variable_name: 'INFO', variable_value: 'Ответы участника' },
   ]);
 });
 
 test('separate Maxim sync preserves filled fields and appends INFO only once', async () => {
-  const profile = 'Имя: Антон\nВозраст: 30\nОпыт: Новичок';
-  const api = client({ sourceVariables: { NAME: 'Антон', 'Возраст': 30, 'Опыт': 'Новичок' }, destinationVariables: { NAME: 'Своё имя', 'Возраст': 40, INFO: 'Старое' } });
+  const profile = 'Имя: Антон\nВозраст: 30\nОпыт: Новичок\nАнкета 1: Ответы участника';
+  const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Ответы участника', 'Возраст': 30, 'Опыт': 'Новичок' }, destinationVariables: { NAME: 'Своё имя', 'Возраст': 40, INFO: 'Старое' } });
   const notesApi = { async listNotes() { return [{ text: profile }]; }, async createNote() { throw new Error('duplicate note'); } };
   await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(api.writes[0].variables[0].variable_name, 'INFO');
-  assert.equal(api.writes[0].variables[0].variable_value, `Старое\n\nАнкета из Ирины:\n${profile}`);
+  assert.equal(api.writes[0].variables[0].variable_value, 'Старое\n\nАнкета из Ирины:\nОтветы участника');
 });
 
 test('separate Maxim sync still processes a cross-bot contact when SendPulse returns the same contact ID', async () => {
-  const api = client({ sourceVariables: { NAME: 'Антон', 'Возраст': 30 } });
+  const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Тест анкеты', 'Возраст': 30 } });
   const originalGetContactByTelegramId = api.getContactByTelegramId;
   api.getContactByTelegramId = async (...args) => ({ ...(await originalGetContactByTelegramId(...args)), id: 'maxim-contact' });
   const notesApi = { async listNotes() { return []; }, async createNote() {} };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
-  assert.equal(api.writes[0].variables[0].variable_name, 'NAME');
+  assert.equal(api.writes[0].variables[0].variable_name, 'Возраст');
+  assert.deepEqual(api.writes[0].variables[1], { variable_name: 'INFO', variable_value: 'Тест анкеты' });
 });
 
 test('separate Maxim sync uses the configured static API key for operator notes', async () => {
@@ -95,8 +95,8 @@ test('separate Maxim sync uses the configured static API key for operator notes'
   }
 });
 
-test('separate Maxim sync saves NAME, Возраст and INFO before a note API failure', async () => {
-  const api = client({ sourceVariables: { NAME: 'Руста', 'Возраст': 34, 'Опыт': 'Новичок' } });
+test('separate Maxim sync saves Возраст and questionnaire INFO before a note API failure', async () => {
+  const api = client({ sourceVariables: { NAME: 'Руста', 'Анкета 1': 'Заполненная анкета', 'Возраст': 34, 'Опыт': 'Новичок' } });
   const notesApi = {
     async listNotes() { throw new Error('notes unavailable'); },
     async createNote() {},
@@ -107,9 +107,8 @@ test('separate Maxim sync saves NAME, Возраст and INFO before a note API 
     /notes unavailable/,
   );
   assert.deepEqual(api.writes[0].variables, [
-    { variable_name: 'NAME', variable_value: 'Руста' },
     { variable_name: 'Возраст', variable_value: '34' },
-    { variable_name: 'INFO', variable_value: 'Имя: Руста\nВозраст: 34\nОпыт: Новичок' },
+    { variable_name: 'INFO', variable_value: 'Заполненная анкета' },
   ]);
 });
 
