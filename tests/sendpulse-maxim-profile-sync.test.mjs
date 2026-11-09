@@ -30,7 +30,7 @@ test('separate Maxim sync copies empty fields, INFO and a filtered note from Iri
   const notesApi = { async listNotes() { return []; }, async createNote(value) { created.push(value); } };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
-  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Имя: Антон\nВозраст: 30\nОпыт: Новичок' }]);
+  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Имя: Антон\nВозраст: 30\nОпыт: Новичок\nАнкета 1: Ответы участника' }]);
   assert.deepEqual(api.writes[0].variables, [
     { variable_name: 'Возраст', variable_value: '30' },
     { variable_name: 'INFO', variable_value: 'Ответы участника' },
