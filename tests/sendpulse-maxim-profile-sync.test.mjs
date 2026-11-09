@@ -24,21 +24,20 @@ function options(api, notesApi) {
   return { enabled: true, sourceBotId: IRINA_BOT_ID, sourceTelegramBotId: IRINA_TG_BOT_ID, client: api, notesApi };
 }
 
-test('separate Maxim sync copies empty fields, INFO and a filtered note from Irina', async () => {
+test('separate Maxim sync copies only Анкета 1 into INFO and filters NAME/Возраст from notes', async () => {
   const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Ответы участника', 'Возраст': 30, 'Опыт': 'Новичок', utm_source: 'facebook', Business_sync: 'x', 'Написал в лс': 'Да' } });
   const created = [];
   const notesApi = { async listNotes() { return []; }, async createNote(value) { created.push(value); } };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
-  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Имя: Антон\nВозраст: 30\nОпыт: Новичок\nАнкета 1: Ответы участника' }]);
+  assert.deepEqual(created, [{ botId: MAXIM_BOT_ID, contactId: 'maxim-contact', text: 'Опыт: Новичок\nАнкета 1: Ответы участника' }]);
   assert.deepEqual(api.writes[0].variables, [
-    { variable_name: 'Возраст', variable_value: '30' },
     { variable_name: 'INFO', variable_value: 'Ответы участника' },
   ]);
 });
 
 test('separate Maxim sync preserves filled fields and appends INFO only once', async () => {
-  const profile = 'Имя: Антон\nВозраст: 30\nОпыт: Новичок\nАнкета 1: Ответы участника';
+  const profile = 'Опыт: Новичок\nАнкета 1: Ответы участника';
   const api = client({ sourceVariables: { NAME: 'Антон', 'Анкета 1': 'Ответы участника', 'Возраст': 30, 'Опыт': 'Новичок' }, destinationVariables: { NAME: 'Своё имя', 'Возраст': 40, INFO: 'Старое' } });
   const notesApi = { async listNotes() { return [{ text: profile }]; }, async createNote() { throw new Error('duplicate note'); } };
   await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
@@ -53,8 +52,7 @@ test('separate Maxim sync still processes a cross-bot contact when SendPulse ret
   const notesApi = { async listNotes() { return []; }, async createNote() {} };
   const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
   assert.equal(result.status, 'success');
-  assert.equal(api.writes[0].variables[0].variable_name, 'Возраст');
-  assert.deepEqual(api.writes[0].variables[1], { variable_name: 'INFO', variable_value: 'Тест анкеты' });
+  assert.deepEqual(api.writes[0].variables, [{ variable_name: 'INFO', variable_value: 'Тест анкеты' }]);
 });
 
 test('separate Maxim sync uses the configured static API key for operator notes', async () => {
@@ -95,7 +93,7 @@ test('separate Maxim sync uses the configured static API key for operator notes'
   }
 });
 
-test('separate Maxim sync saves Возраст and questionnaire INFO before a note API failure', async () => {
+test('separate Maxim sync saves only questionnaire INFO before a note API failure', async () => {
   const api = client({ sourceVariables: { NAME: 'Руста', 'Анкета 1': 'Заполненная анкета', 'Возраст': 34, 'Опыт': 'Новичок' } });
   const notesApi = {
     async listNotes() { throw new Error('notes unavailable'); },
@@ -107,9 +105,16 @@ test('separate Maxim sync saves Возраст and questionnaire INFO before a n
     /notes unavailable/,
   );
   assert.deepEqual(api.writes[0].variables, [
-    { variable_name: 'Возраст', variable_value: '34' },
     { variable_name: 'INFO', variable_value: 'Заполненная анкета' },
   ]);
+});
+
+test('separate Maxim sync does not transfer NAME or Возраст when анкета is empty', async () => {
+  const api = client({ sourceVariables: { NAME: 'Антон', 'Возраст': 30 } });
+  const notesApi = { async listNotes() { throw new Error('unexpected note read'); }, async createNote() { throw new Error('unexpected note'); } };
+  const result = await processMaximProfileSyncEvent(maximEvent(), options(api, notesApi));
+  assert.equal(result.status, 'up_to_date');
+  assert.deepEqual(api.writes, []);
 });
 
 test('old Business Sync function remains Irina-only and keeps Написал в лс behavior', async () => {
